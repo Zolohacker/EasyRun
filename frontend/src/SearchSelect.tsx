@@ -1,6 +1,7 @@
 import {Children,isValidElement,useEffect,useId,useMemo,useRef,useState,type ChangeEvent,type ReactNode,type SelectHTMLAttributes} from 'react'
 import {createPortal} from 'react-dom'
 import {Check,ChevronDown,Search} from 'lucide-react'
+import {useOverlayScrollLock} from './Modal'
 
 type Option={value:string;label:string;disabled:boolean}
 function textOf(node:ReactNode):string{return Children.toArray(node).map(child=>isValidElement<{children?:ReactNode}>(child)?textOf(child.props.children):String(child)).join('')}
@@ -22,22 +23,31 @@ export default function SearchSelect({children,value,defaultValue,onChange,disab
   const selected=String(value??ownValue),choice=options.find(option=>option.value===selected)
   const matches=options.filter(option=>(option.label+' '+option.value).toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()))
   const visible=matches.slice(0,150)
+  useOverlayScrollLock(open&&typeof window!=='undefined'&&window.matchMedia('(max-width:760px)').matches)
   useEffect(()=>{setLabel(button.current?.closest('label')?.querySelector('span')?.textContent||'请选择')},[])
   useEffect(()=>{if(disabled)setOpen(false)},[disabled])
   useEffect(()=>{
     if(!open)return
     const place=()=>{
       const rect=button.current?.getBoundingClientRect();if(!rect)return
-      const width=Math.min(Math.max(rect.width,220),window.innerWidth-24)
-      const below=window.innerHeight-rect.bottom-16,above=rect.top-16,flip=below<240&&above>below
-      const maxHeight=Math.max(130,Math.min(340,flip?above:below))
-      setPosition({left:Math.max(12,Math.min(rect.left,window.innerWidth-width-12)),top:flip?undefined:rect.bottom+6,bottom:flip?window.innerHeight-rect.top+6:undefined,width,maxHeight})
+      const viewport=window.visualViewport,left=viewport?.offsetLeft||0,top=viewport?.offsetTop||0
+      const viewWidth=viewport?.width||window.innerWidth,viewHeight=viewport?.height||window.innerHeight
+      if(window.matchMedia('(max-width:760px)').matches){
+        const maxHeight=Math.max(60,Math.min(420,viewHeight-24))
+        setPosition({left:left+12,top:top+Math.max(12,viewHeight-maxHeight-12),width:viewWidth-24,maxHeight})
+        return
+      }
+      const width=Math.min(Math.max(rect.width,220),viewWidth-24)
+      const below=top+viewHeight-rect.bottom-16,above=rect.top-top-16,flip=below<240&&above>below
+      const maxHeight=Math.max(80,Math.min(340,flip?above:below))
+      setPosition({left:Math.max(left+12,Math.min(rect.left,left+viewWidth-width-12)),top:flip?Math.max(top+12,rect.top-maxHeight-6):rect.bottom+6,width,maxHeight})
     }
     const outside=(event:PointerEvent)=>{const target=event.target as Node;if(!button.current?.contains(target)&&!popup.current?.contains(target))setOpen(false)}
-    const scrolled=(event:Event)=>{if(!popup.current?.contains(event.target as Node))setOpen(false)}
+    const scrolled=(event:Event)=>{if(!popup.current?.contains(event.target as Node)){if(window.matchMedia('(max-width:760px)').matches)place();else setOpen(false)}}
     place();search.current?.focus()
     document.addEventListener('pointerdown',outside);window.addEventListener('resize',place);window.addEventListener('scroll',scrolled,true)
-    return()=>{document.removeEventListener('pointerdown',outside);window.removeEventListener('resize',place);window.removeEventListener('scroll',scrolled,true)}
+    window.visualViewport?.addEventListener('resize',place);window.visualViewport?.addEventListener('scroll',place)
+    return()=>{document.removeEventListener('pointerdown',outside);window.removeEventListener('resize',place);window.removeEventListener('scroll',scrolled,true);window.visualViewport?.removeEventListener('resize',place);window.visualViewport?.removeEventListener('scroll',place)}
   },[open])
   useEffect(()=>{if(open)popup.current?.querySelector(`[data-option-index="${active}"]`)?.scrollIntoView({block:'nearest'})},[active,open])
   const choose=(option:Option)=>{
@@ -52,10 +62,10 @@ export default function SearchSelect({children,value,defaultValue,onChange,disab
     <select {...props} ref={native} value={selected} disabled={disabled} onChange={onChange} tabIndex={-1} aria-hidden="true" className="search-select-native" onInvalid={event=>{event.preventDefault();setInvalid(true);show();button.current?.focus()}}>{children}</select>
     <button ref={button} type="button" role="combobox" aria-label={props['aria-label']||label} aria-expanded={open} aria-controls={`${id}-options`} aria-haspopup="listbox" aria-required={props.required} disabled={disabled} title={choice?.label} onClick={event=>{event.preventDefault();if(open)setOpen(false);else show()}} onKeyDown={event=>{if(event.key==='ArrowDown'||event.key==='ArrowUp'){event.preventDefault();show()}else if(event.key==='Escape')setOpen(false)}}><span className={selected?'':'placeholder'}>{choice?.label||'请选择'}</span><ChevronDown size={16}/></button>
     {open&&createPortal(<div ref={popup} className="search-select-popup" style={position} onKeyDown={event=>{
-      if(event.key==='Escape'){event.preventDefault();setOpen(false);button.current?.focus()}
+      if(event.key==='Escape'){event.preventDefault();event.stopPropagation();setOpen(false);button.current?.focus()}
       else if(event.key==='ArrowDown'||event.key==='ArrowUp'){event.preventDefault();setActive(index=>Math.max(0,Math.min(visible.length-1,index+(event.key==='ArrowDown'?1:-1))))}
       else if(event.key==='Enter'){event.preventDefault();if(visible[active])choose(visible[active])}
-      else if(event.key==='Tab')setOpen(false)
+      else if(event.key==='Tab'){event.preventDefault();setOpen(false);button.current?.focus()}
     }}><div className="search-select-search"><Search size={16}/><input ref={search} type="search" aria-label="搜索选项" placeholder="输入关键词搜索…" autoComplete="off" value={query} onChange={event=>{setQuery(event.target.value);setActive(0)}}/></div><div role="listbox" id={`${id}-options`} aria-label={props['aria-label']||label} className="search-select-options">{visible.map((option,index)=><button key={option.value} type="button" role="option" aria-selected={option.value===selected} aria-disabled={option.disabled} disabled={option.disabled} data-option-index={index} className={index===active?'active':''} onMouseEnter={()=>setActive(index)} onClick={()=>choose(option)}><span>{option.label}</span>{option.value===selected&&<Check size={16}/>}</button>)}{!visible.length&&<p>没有匹配的选项</p>}{matches.length>150&&<small>仅显示前 150 项，请搜索缩小范围。</small>}</div></div>,document.body)}
   </div>
 }

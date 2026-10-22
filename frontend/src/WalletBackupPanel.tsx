@@ -3,10 +3,12 @@ import {createPortal} from 'react-dom'
 import {Download,KeyRound,ShieldCheck,X} from 'lucide-react'
 import {Field} from './PortalPages'
 import {portalRequest,type PortalSettings,type WalletBackup} from './portal'
+import {useOverlayScrollLock} from './Modal'
 
 export default function WalletBackupPanel({wallet,onCreate,creating,canCreate}:{wallet:PortalSettings['wallet'];onCreate:()=>void;creating:boolean;canCreate:boolean}){
   const [open,setOpen]=useState(false),[password,setPassword]=useState(''),[ack,setAck]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState(''),[backup,setBackup]=useState<WalletBackup|null>(null)
   const passwordInput=useRef<HTMLInputElement>(null),dialog=useRef<HTMLDivElement>(null),request=useRef(0)
+  useOverlayScrollLock(open)
   const close=()=>{request.current++;setOpen(false);setPassword('');setAck(false);setError('');setBackup(null);setBusy(false)}
   useEffect(()=>()=>{request.current++},[])
   useEffect(()=>{

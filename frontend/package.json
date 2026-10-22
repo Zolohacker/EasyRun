@@ -6,11 +6,13 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit -p tsconfig.app.json && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "node --test tests/*.test.mjs"
   },
   "dependencies": {
     "leaflet": "^1.9.4",
     "lucide-react": "^0.468.0",
+    "qrcode.react": "4.2.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },

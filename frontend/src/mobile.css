@@ -1,0 +1,236 @@
+/* Shared overlays and payment QR. Keep these independent of card containment. */
+.mobile-bottom-nav, .mobile-brand-label, .mobile-action-label, .account-mobile-login { display: none; }
+.modal-backdrop { z-index: 1200; top: var(--dialog-top, 0px); bottom: auto; height: var(--dialog-height, 100dvh); }
+.modal.app-modal { display: flex; flex-direction: column; max-height: min(90vh, calc(var(--dialog-height, 100dvh) - 36px)); padding: 0; overflow: hidden; }
+.app-modal > .modal-head { align-items: center; flex: none; gap: 14px; margin: 0; padding: 18px 22px; border-bottom: 1px solid var(--line); }
+.app-modal > .modal-head h2 { margin: 0; min-width: 0; overflow-wrap: anywhere; font-size: 19px; line-height: 1.5; }
+.app-modal > .modal-head .icon-button { flex: none; width: 44px; height: 44px; }
+.modal-body { min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 22px; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: #34574a transparent; }
+.deposit-qr { display: grid; justify-items: center; gap: 9px; min-width: 0; }
+.deposit-qr-code { width: min(100%, 236px); padding: 6px; border-radius: 12px; background: #fff; line-height: 0; }
+.deposit-qr-code svg { display: block; max-width: 100%; width: 100%; height: auto; }
+.deposit-qr strong { font-size: 15px; color: #d9f1e4; }
+.deposit-qr > span { text-align: center; font-size: 13px; line-height: 1.6; color: var(--muted); }
+.deposit-address { display: grid; min-width: 0; gap: 8px; }
+.deposit-address > span { font-size: 13px; color: var(--muted); }
+.deposit-address .portal-address { display: block; margin: 0; width: 100%; overflow-wrap: anywhere; white-space: normal; font-size: 14px; line-height: 1.7; user-select: all; }
+.deposit-pending { display: grid; justify-items: center; gap: 14px; padding: 18px 0; text-align: center; }
+.deposit-pending > svg { width: 36px; height: 36px; color: var(--cyan); }
+.deposit-pending p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.8; }
+
+@media (max-width: 760px) {
+  html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+  body { min-width: 0; }
+  .app-shell { display: block; }
+  .app-shell > .sidebar { display: none; }
+  .app-shell > .main-stage { min-width: 0; width: 100%; padding: 0 12px calc(92px + env(safe-area-inset-bottom, 0px)); }
+  .main-stage > .topbar { position: sticky; top: 0; z-index: 100; height: auto; min-height: 72px; margin: 0 -12px 14px; padding: calc(12px + env(safe-area-inset-top, 0px)) 16px 12px; gap: 12px; border-bottom: 1px solid var(--line); background: rgba(6,22,17,.96); backdrop-filter: blur(18px); }
+  .topbar > div { min-width: 0; }
+  .mobile-brand-label { display: block; color: var(--muted); font-size: 11px; line-height: 1.5; letter-spacing: .04em; }
+  .topbar h1 { margin: 3px 0 0; font-size: 22px; line-height: 1.35; }
+  .topbar > .icon-button { flex: none; }
+  .mobile-bottom-nav { position: fixed; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); z-index: 110; left: 0; right: 0; bottom: 0; padding: 6px 6px calc(6px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid rgba(126,211,167,.19); background: rgba(5,22,16,.97); backdrop-filter: blur(20px); }
+  .mobile-bottom-nav > button { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; min-width: 0; min-height: 54px; padding: 6px 2px; border: 0; border-radius: 10px; background: none; color: #91ad9e; cursor: pointer; }
+  .mobile-bottom-nav > button.active { color: var(--green); background: rgba(98,246,170,.08); }
+  .mobile-bottom-nav svg { width: 21px; height: 21px; flex: none; }
+  .mobile-bottom-nav span { font-size: 12px; line-height: 1.3; white-space: nowrap; }
+  .mobile-bottom-nav b { position: absolute; top: 1px; left: calc(50% + 8px); min-width: 17px; padding: 1px 4px; border-radius: 20px; font-size: 10px; color: #bfe9d0; background: #1b4331; border: 1px solid #315e47; }
+  .mobile-menu-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .mobile-menu-grid > button { display: flex; min-width: 0; align-items: center; gap: 10px; min-height: 56px; padding: 12px; border: 1px solid var(--line); border-radius: 11px; background: #0a2119; text-align: left; color: #c2dbce; cursor: pointer; }
+  .mobile-menu-grid > button.active { color: var(--green); border-color: #62f6aa50; background: #62f6aa0b; }
+  .mobile-menu-grid svg { flex: none; width: 20px; height: 20px; }
+  .mobile-menu-grid span { min-width: 0; font-size: 14px; line-height: 1.5; }
+  .mobile-menu-grid b { margin-left: auto; color: var(--muted); font-size: 12px; }
+  .mobile-user-card { display: grid; gap: 14px; margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--line); }
+  .mobile-user-card > div { display: grid; gap: 6px; min-width: 0; }
+  .mobile-user-card strong { font-size: 14px; overflow-wrap: anywhere; }
+  .mobile-user-card span { color: var(--muted); font-size: 13px; }
+  .mobile-user-card .button { width: 100%; }
+
+  /* Touch targets and iOS text fields. Avoid focus zoom and tiny icon actions. */
+  .button, .icon-button, .mini-button, .search-select > button { min-height: 44px; }
+  .button { height: auto; padding: 10px 12px; font-size: 14px; line-height: 1.5; }
+  .button svg { flex: none; width: 17px; height: 17px; }
+  .icon-button { width: 44px; height: 44px; }
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]), select, textarea, .settings-page input { min-width: 0; min-height: 44px; font-size: 16px; }
+  input[type="checkbox"], input[type="radio"] { width: 20px; height: 20px; flex: none; }
+  .field > span, .map-key-secret > label, .map-key-qps > span { font-size: 14px; line-height: 1.6; letter-spacing: 0; }
+  .field small { font-size: 12px; line-height: 1.65; }
+  .page-stack { gap: 14px; min-width: 0; }
+  .page-stack > *, .panel, .paginated-list { min-width: 0; max-width: 100%; }
+  .page-toolbar { gap: 10px; }
+  .page-toolbar > .button { width: 100%; }
+  .panel-heading { flex-wrap: wrap; align-items: center; gap: 10px; }
+  .panel-heading h2 { font-size: 17px; line-height: 1.5; }
+  .portal-section, .mission-panel, .quota-panel, .chart-panel, .map-panel, .split-panel { padding: 16px; }
+  .form-grid, .account-login-fields, .account-device-grid, .portal-user-form, .portal-prices, .selector-grid, .automation-quota-grid { grid-template-columns: minmax(0, 1fr); }
+  .action-row, .face-actions { align-items: stretch; gap: 10px; }
+  .action-row > .button, .face-actions > .button { flex: 1 1 140px; }
+  .protocol-note, .face-explain { align-items: start; padding: 12px; }
+  .protocol-note > div, .face-explain > div { min-width: 0; }
+  .protocol-note strong, .face-explain strong { font-size: 14px; line-height: 1.6; }
+  .protocol-note span, .face-explain span { font-size: 13px; line-height: 1.7; overflow-wrap: anywhere; }
+  .login-mode-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .login-mode-grid > button { min-width: 0; padding: 12px; }
+  .login-mode-grid strong { font-size: 14px; }
+  .login-mode-grid span { font-size: 12px; line-height: 1.6; }
+  .advanced-options > summary { flex-wrap: wrap; }
+  .advanced-options > summary > span { flex: 1; min-width: 0; }
+  .advanced-options > summary > small { flex-basis: 100%; margin-left: 27px; line-height: 1.6; }
+
+  /* Dialog headers remain reachable while forms scroll above the keyboard. */
+  .modal-backdrop { padding: 0; align-items: end; }
+  .modal.app-modal, .modal.account-modal { width: 100%; max-width: 100%; max-height: calc(var(--dialog-height, 100dvh) - max(10px, env(safe-area-inset-top, 0px))); margin: 0; padding: 0; border-radius: 18px 18px 0 0; }
+  .app-modal > .modal-head { padding: 12px 16px; gap: 10px; }
+  .app-modal > .modal-head h2 { font-size: 18px; }
+  .modal-body { padding: 16px 16px calc(20px + env(safe-area-inset-bottom, 0px)); scroll-padding: 16px; }
+  .modal-body > .form-stack { gap: 16px; }
+  .modal:not(.app-modal) { width: 100%; max-height: calc(100dvh - max(10px, env(safe-area-inset-top, 0px))); padding: 16px 16px calc(20px + env(safe-area-inset-bottom, 0px)); border-radius: 18px 18px 0 0; }
+  .wallet-backup-modal .modal-head { position: sticky; top: -16px; z-index: 2; padding: 10px 0; margin-bottom: 14px; background: #10271f; }
+  .wallet-mnemonic-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .search-select > button { height: 44px; font-size: 15px; }
+  .search-select-popup { border-radius: 15px; padding: 9px; }
+  .search-select-search > input { height: 44px !important; font-size: 16px; }
+  .search-select-options > button { min-height: 46px; font-size: 15px; padding: 10px; }
+
+  /* Actual account cards, rather than a 730px desktop table clipped on phones. */
+  .main-stage .account-list-head { display: none; }
+  .main-stage .account-list-row { display: grid; grid-template-columns: minmax(0, 1fr) 104px; grid-template-areas: "identity face" "student face" "actions actions"; gap: 8px 10px; min-width: 0; padding: 14px; margin: 0; }
+  .main-stage .account-identity { grid-area: identity; gap: 9px; align-items: start; }
+  .main-stage .account-identity strong { font-size: 15px; }
+  .main-stage .account-identity span, .main-stage .account-owner-name { font-size: 12px; white-space: normal; overflow-wrap: anywhere; }
+  .main-stage .account-mobile-login { display: block; font-size: 12px; color: var(--muted); }
+  .main-stage .account-student { grid-area: student; display: flex; flex-wrap: wrap; align-items: baseline; gap: 5px 8px; }
+  .main-stage .account-student > span { display: block; color: var(--muted); font-size: 12px; }
+  .main-stage .account-student b { font-size: 14px; overflow-wrap: anywhere; }
+  .main-stage .account-face-state { grid-area: face; flex-direction: column; justify-content: center; align-items: center; text-align: center; min-height: 88px; padding: 8px; gap: 7px; background: #62f6aa05; border: 1px solid var(--line); }
+  .main-stage .account-face-state b { font-size: 12px; white-space: normal; }
+  .main-stage .account-face-state small { font-size: 11px; }
+  .main-stage .account-row-actions { grid-area: actions; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding-top: 10px; margin-top: 2px; border-top: 1px solid var(--line); }
+  .main-stage .account-row-actions .button, .main-stage .account-row-actions .mini-button, .main-stage .account-row-actions .search-select, .main-stage .account-row-actions .search-select > button { width: 100%; min-width: 0; min-height: 44px; height: auto; font-size: 13px; }
+  .main-stage .account-row-actions .mini-button { display: flex; align-items: center; justify-content: center; gap: 6px; }
+  .mobile-action-label { display: inline; }
+  .main-stage .account-row-actions > :last-child:nth-child(odd) { grid-column: 1 / -1; }
+  .main-stage .account-list-panel .list-viewport, .main-stage .jobs-panel .list-viewport { height: clamp(280px, 62dvh, 620px); max-height: none; overflow-x: hidden; }
+  .account-owner-filter { padding: 14px; gap: 12px; }
+
+  /* Show every task field; don't hide plan/area/schedule at narrow widths. */
+  .automation-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .summary-tile { min-width: 0; padding: 12px; min-height: 94px; grid-template-columns: 30px minmax(0, 1fr); }
+  .summary-tile > div { width: 28px; height: 28px; }
+  .summary-tile strong { font-size: 23px; }
+  .main-stage .job-row { position: relative; display: flex !important; flex-direction: column; align-items: stretch; gap: 9px !important; min-width: 0; padding: 14px !important; }
+  .main-stage .job-state { position: absolute; top: 14px; left: 14px; width: 32px; height: 34px; }
+  .main-stage .job-title { min-height: 38px; padding-left: 43px; }
+  .main-stage .job-title strong { font-size: 15px; }
+  .main-stage .job-row strong, .main-stage .job-row b, .main-stage .job-row small, .main-stage .job-row span, .main-stage .job-row code { white-space: normal; overflow: visible; overflow-wrap: anywhere; line-height: 1.6; }
+  .main-stage .job-row .job-bind, .main-stage .job-row .job-schedule, .main-stage .job-row .job-distance { display: block; }
+  .main-stage .job-bind > span { display: inline; font-size: 12px; color: var(--muted); letter-spacing: 0; margin-right: 8px; }
+  .main-stage .job-bind > b { display: inline; font-size: 13px; }
+  .main-stage .job-distance > b { font-size: 16px; }
+  .main-stage .job-distance > small, .main-stage .job-schedule > span { display: block; margin-top: 4px; color: var(--muted); }
+  .main-stage .job-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; padding-top: 8px; }
+  .main-stage .job-actions .mini-button { display: flex; align-items: center; justify-content: center; gap: 5px; width: 100%; height: auto; min-height: 44px; padding: 8px 5px; }
+  .main-stage .job-actions .mobile-action-label { font-size: 12px; white-space: nowrap; }
+  .schedule-editor-head { flex-direction: column; align-items: start; gap: 8px; }
+  .schedule-editor-head small { font-size: 12px; line-height: 1.6; }
+  .schedule-mode-grid { grid-template-columns: minmax(0, 1fr); }
+
+  /* Field-labelled table cards keep key operations visible without side-scrolling. */
+  table.mobile-card-table { display: block; min-width: 0; width: 100%; }
+  .mobile-card-table > thead { display: none; }
+  .mobile-card-table > tbody { display: grid; gap: 10px; width: 100%; }
+  .mobile-card-table > tbody > tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); min-width: 0; padding: 10px; border: 1px solid var(--line); border-radius: 11px; background: #081c15; }
+  .mobile-card-table > tbody > tr > td { display: flex; flex-direction: column; align-items: start; gap: 5px; min-width: 0; max-width: none; padding: 8px 6px; border: 0; font-size: 14px; line-height: 1.6; white-space: normal; overflow-wrap: anywhere; }
+  .mobile-card-table td[data-label]::before { content: attr(data-label); font-size: 12px; color: var(--muted); font-weight: 400; }
+  .mobile-card-table td.mobile-wide-cell { grid-column: 1 / -1; }
+  .mobile-card-table code { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+  .list-viewport .mobile-card-table td .portal-break { max-width: 100%; overflow: visible; white-space: normal !important; overflow-wrap: anywhere; font-size: 13px; }
+  .table-scroll { min-width: 0; max-width: 100%; }
+  .execution-message { max-width: none; white-space: normal; }
+  .list-viewport { height: clamp(280px, 58dvh, 560px); }
+  .list-pagination { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; padding: 12px; }
+  .list-pagination > span { grid-column: 1 / -1; }
+  .list-pagination > label { display: flex; flex-wrap: wrap; gap: 5px; font-size: 12px; min-width: 0; }
+  .list-pagination .search-select { min-width: 0; width: 90px; }
+  .list-pagination .search-select > button { height: 44px; font-size: 13px; padding: 0 9px; }
+  .list-pagination > div { display: flex; align-items: center; justify-content: end; gap: 7px; min-width: 0; }
+  .list-pagination > div > span { font-size: 12px; white-space: nowrap; }
+  .list-pagination .icon-button { width: 40px; height: 44px; padding: 0; }
+  .compact-filter-bar { padding: 14px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .compact-filter-bar > .field { width: 100%; min-width: 0; }
+
+  .records-workspace { grid-template-columns: minmax(0, 1fr); }
+  .record-detail-pane { padding: 12px; min-height: 0; }
+  .record-detail-empty, .record-detail-loading { min-height: 160px; }
+  .remote-records.list-viewport { height: 260px; max-height: 45dvh; }
+  .record-detail-head, .record-inspection-head { flex-wrap: wrap; }
+  .record-metric-grid, .record-segments, .face-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .record-metric strong { white-space: normal; overflow-wrap: anywhere; }
+  .record-progress-grid, .face-preview-grid { grid-template-columns: minmax(0, 1fr); }
+  .record-progress-grid { max-height: 220px; }
+  .face-preview-image { height: clamp(220px, 42dvh, 360px); }
+  .face-detection-result { grid-template-columns: 36px minmax(0, 1fr); }
+  .face-detection-result > div:nth-child(n+3) { grid-column: 2; }
+  .face-detection-result code { white-space: normal; overflow-wrap: anywhere; }
+  .face-api-notice > div, .face-api-error > div { min-width: 0; }
+
+  .hero-grid { grid-template-columns: minmax(0, 1fr); }
+  .mission-facts, .stat-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .fact b { white-space: normal; overflow-wrap: anywhere; }
+  .distance-picker-control { grid-template-columns: 44px minmax(0, 1fr) 44px; }
+  .distance-picker-control button { width: 44px; height: 44px; }
+  .distance-picker-control input[type="range"] { height: 44px; background: transparent; }
+  .route-viewport, .record-route-map .route-viewport { height: clamp(280px, 46dvh, 390px); }
+  .amap-toolbar { left: 10px; top: 10px; }
+  .amap-toolbar button { width: 44px; height: 44px; padding: 0; justify-content: center; }
+  .amap-toolbar button > span { display: none; }
+  .leaflet-top.leaflet-right { top: 0; right: 0; }
+  .leaflet-control-zoom a { width: 40px; height: 40px; line-height: 40px; }
+  .map-coordinates { max-width: calc(100% - 24px); bottom: 42px; right: 10px; padding: 6px 8px; }
+  .map-coordinates span, .map-coordinates b { white-space: normal; overflow-wrap: anywhere; font-size: 11px; }
+  .map-legend { flex-wrap: wrap; gap: 6px; max-width: calc(100% - 20px); }
+  .resource-toolbar { display: grid; grid-template-columns: minmax(0, 1fr); width: 100%; }
+
+  .portal-page-tabs { display: flex; flex-wrap: wrap; gap: 4px; overflow: visible; }
+  .portal-page-tabs > button { flex: 1 1 100px; min-width: 0; min-height: 44px; padding: 10px 6px; white-space: normal; font-size: 13px; line-height: 1.5; }
+  .customer-wallet > .portal-page-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .portal-two-columns, .portal-rate-cards { grid-template-columns: minmax(0, 1fr); }
+  .portal-balance-card { padding: 22px 18px; min-width: 0; }
+  .portal-balance-card h2 { font-size: 27px; overflow-wrap: anywhere; }
+  .portal-balance-card > svg { width: 35px; height: 35px; flex: none; }
+  .portal-section { gap: 16px; }
+  .portal-job-modes > div, .portal-package-list > div, .portal-shop-callout, .portal-panel-footer { flex-direction: column; align-items: stretch; gap: 12px; min-width: 0; }
+  .portal-job-modes > div > div, .portal-package-list > div > div { min-width: 0; }
+  .portal-job-modes .search-select { max-width: none; width: 100%; }
+  .portal-package-list strong, .portal-job-modes strong, .portal-job-modes span { white-space: normal; overflow-wrap: anywhere; }
+  .portal-save { position: static; grid-template-columns: minmax(0, 1fr); gap: 14px; padding: 16px; }
+  .portal-save .button { width: 100%; }
+  .portal-wallet-security { flex-direction: column; align-items: stretch; padding: 14px; gap: 12px; }
+  .portal-wallet-security > div { min-width: 0; }
+  .portal-wallet-security .button { width: 100%; }
+  .portal-config-links { justify-content: start; flex-wrap: wrap; }
+  .portal-inline { align-items: stretch; }
+  .portal-inline > input, .portal-inline > .button { flex: 1 1 100%; min-width: 0; }
+  .portal-toggle-grid { gap: 8px; }
+  .portal-toggle { align-items: start; line-height: 1.6; }
+  .portal-toggle input { margin-top: 2px; }
+  .portal-auth { display: block; min-width: 0; }
+  .portal-auth-aside { display: none; }
+  .portal-auth-main { padding: calc(28px + env(safe-area-inset-top, 0px)) 18px calc(28px + env(safe-area-inset-bottom, 0px)); min-height: 100dvh; }
+  .portal-auth-card { min-width: 0; gap: 18px; }
+  .portal-auth-card > h2 { font-size: 27px; }
+  .portal-auth-card .form-grid { grid-template-columns: minmax(0, 1fr); }
+  .portal-mode-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .portal-mode-grid > button { min-width: 0; padding: 12px; }
+  .portal-mode-grid > button > span { overflow-wrap: anywhere; }
+  .public-portrait-page { padding: calc(24px + env(safe-area-inset-top, 0px)) 12px calc(24px + env(safe-area-inset-bottom, 0px)); min-width: 0; }
+  .public-portrait-card { padding: 18px; max-width: 100%; min-width: 0; }
+  .public-portrait-card h1 { font-size: 24px; }
+  .portal-portrait-preview { height: clamp(230px, 46dvh, 380px); }
+  .toast { z-index: 1300; left: 12px; right: 12px; bottom: calc(82px + env(safe-area-inset-bottom, 0px)); max-width: none; font-size: 14px; line-height: 1.6; overflow-wrap: anywhere; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}
