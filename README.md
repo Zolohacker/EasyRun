@@ -143,7 +143,6 @@ cp .env.example .env
 ACCOUNT_MASTER_KEY=BASE64_ENCODED_32_BYTE_KEY
 MAP_API_KEY=YOUR_WEB_SERVICE_KEY
 POSTGRES_PASSWORD=USE_A_RANDOM_ALPHANUMERIC_PASSWORD
-PORTAL_SETUP_TOKEN=RANDOM_FIRST_RUN_TOKEN
 COOKIE_SECURE=false
 ```
 
@@ -153,7 +152,7 @@ COOKIE_SECURE=false
 openssl rand -base64 32
 ```
 
-为 `PORTAL_SETUP_TOKEN` 另生成一段随机字符串（例如 `openssl rand -hex 32`），首次向导中填写。容器端口转发和反向代理不视为本机直连；正式 HTTPS 部署把 `COOKIE_SECURE` 设置为 `true`。
+首次访问直接设置超级管理员邮箱、密码及使用模式，无需额外令牌；本机、容器和反向代理部署使用相同流程。正式 HTTPS 部署把 `COOKIE_SECURE` 设置为 `true`。
 
 启动：
 

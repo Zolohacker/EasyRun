@@ -132,8 +132,46 @@ func userOf(t *testing.T, c *http.Client, base string) User {
 	return u
 }
 
+func TestSetupFromRemoteAndProxy(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		remoteAddr   string
+		forwardedFor string
+	}{
+		{name: "remote", remoteAddr: "203.0.113.42:12345"},
+		{name: "reverse_proxy", remoteAddr: "127.0.0.1:12345", forwardedFor: "198.51.100.42"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s, _ := testService(t)
+			mux := http.NewServeMux()
+			s.Mount(mux)
+			handler := s.Wrap(mux)
+			setup := func(want int) {
+				t.Helper()
+				r := httptest.NewRequest(http.MethodPost, "http://easyrun.example.test/api/v1/portal/setup", strings.NewReader(`{"email":"admin@example.test","password":"test-password-12345","mode":"personal"}`))
+				r.RemoteAddr = tc.remoteAddr
+				r.Header.Set("Content-Type", "application/json")
+				r.Header.Set("Origin", "http://easyrun.example.test")
+				if tc.forwardedFor != "" {
+					r.Header.Set("X-Forwarded-For", tc.forwardedFor)
+				}
+				w := httptest.NewRecorder()
+				handler.ServeHTTP(w, r)
+				if w.Code != want {
+					t.Fatalf("setup status=%d want=%d body=%s", w.Code, want, w.Body.String())
+				}
+			}
+			setup(http.StatusCreated)
+			setup(http.StatusConflict)
+			var admins int
+			if e := s.db.QueryRow(context.Background(), `SELECT count(*) FROM portal_users WHERE role='superadmin'`).Scan(&admins); e != nil || admins != 1 {
+				t.Fatalf("expected one superadmin, got %d: %v", admins, e)
+			}
+		})
+	}
+}
+
 func TestPortalIntegration(t *testing.T) {
-	t.Setenv("PORTAL_SETUP_TOKEN", "")
 	s, db := testService(t)
 	ctx := context.Background()
 	old, e := db.CreateAccount(ctx, platform.Account{ID: "old_account", LoginName: "old", Name: "旧数据", Enabled: true})

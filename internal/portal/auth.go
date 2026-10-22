@@ -195,20 +195,13 @@ func (s *Service) setup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var in struct {
-		Email      string `json:"email"`
-		Password   string `json:"password"`
-		Mode       string `json:"mode"`
-		Frontend   bool   `json:"frontend_enabled"`
-		SetupToken string `json:"setup_token"`
+		Email    string `json:"email"`
+		Password string `json:"password"`
+		Mode     string `json:"mode"`
+		Frontend bool   `json:"frontend_enabled"`
 	}
 	if e := decode(w, r, &in); e != nil {
 		fail(w, 400, e.Error())
-		return
-	}
-	expected := os.Getenv("PORTAL_SETUP_TOKEN")
-	ip := net.ParseIP(remoteIP(r))
-	if (expected != "" && digest(in.SetupToken) != digest(expected)) || (expected == "" && (ip == nil || !ip.IsLoopback() || r.Header.Get("X-Forwarded-For") != "")) {
-		fail(w, 403, "首次初始化请使用本机连接，或设置 PORTAL_SETUP_TOKEN 后填写初始化令牌")
 		return
 	}
 	email, e := normalizedEmail(in.Email)
