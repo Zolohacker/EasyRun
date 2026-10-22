@@ -467,11 +467,11 @@ func (s *Service) ensureRunQuota(ctx context.Context, account *platform.Account,
 	if targetDistanceM <= 0 {
 		targetDistanceM = plan.TargetDistanceM
 	}
-	if dailyDistanceLimitM > 0 && usage.DayDistanceM+targetDistanceM > dailyDistanceLimitM+0.5 {
-		return fmt.Errorf("%w: 今日已完成 %.2f km，本次计划 %.2f km，合计将超过 %.2f km 的每日限额", activity.ErrRunQuotaExceeded, usage.DayDistanceM/1000, targetDistanceM/1000, dailyDistanceLimitM/1000)
+	if activity.ExceedsDistanceQuota(usage.DayDistanceM, targetDistanceM, dailyDistanceLimitM) {
+		return fmt.Errorf("%w: 今日已完成 %.2f km，本次计划 %.2f km，合计 %.2f km，将超过 %.2f km 的每日限额及 0.10 km 容差", activity.ErrRunQuotaExceeded, usage.DayDistanceM/1000, targetDistanceM/1000, (usage.DayDistanceM+targetDistanceM)/1000, dailyDistanceLimitM/1000)
 	}
-	if weeklyDistanceLimitM > 0 && usage.WeekDistanceM+targetDistanceM > weeklyDistanceLimitM+0.5 {
-		return fmt.Errorf("%w: 本周已完成 %.2f km，本次计划 %.2f km，合计将超过 %.2f km 的每周限额", activity.ErrRunQuotaExceeded, usage.WeekDistanceM/1000, targetDistanceM/1000, weeklyDistanceLimitM/1000)
+	if activity.ExceedsDistanceQuota(usage.WeekDistanceM, targetDistanceM, weeklyDistanceLimitM) {
+		return fmt.Errorf("%w: 本周已完成 %.2f km，本次计划 %.2f km，合计 %.2f km，将超过 %.2f km 的每周限额及 0.10 km 容差", activity.ErrRunQuotaExceeded, usage.WeekDistanceM/1000, targetDistanceM/1000, (usage.WeekDistanceM+targetDistanceM)/1000, weeklyDistanceLimitM/1000)
 	}
 	return nil
 }

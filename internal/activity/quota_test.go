@@ -24,3 +24,26 @@ func TestResolveDailyRunLimit(t *testing.T) {
 		})
 	}
 }
+
+func TestExceedsDistanceQuota(t *testing.T) {
+	tests := []struct {
+		name       string
+		completedM float64
+		plannedM   float64
+		limitM     float64
+		want       bool
+	}{
+		{name: "twenty metre overage is allowed", completedM: 2020, plannedM: 3000, limitM: 5000, want: false},
+		{name: "exactly one hundred metre overage is allowed", completedM: 2100, plannedM: 3000, limitM: 5000, want: false},
+		{name: "more than one hundred metre overage is rejected", completedM: 2101, plannedM: 3000, limitM: 5000, want: true},
+		{name: "zero limit is unrestricted", completedM: 9000, plannedM: 3000, limitM: 0, want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := ExceedsDistanceQuota(tt.completedM, tt.plannedM, tt.limitM); got != tt.want {
+				t.Fatalf("ExceedsDistanceQuota(%v, %v, %v) = %v, want %v", tt.completedM, tt.plannedM, tt.limitM, got, tt.want)
+			}
+		})
+	}
+}
