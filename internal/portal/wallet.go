@@ -311,6 +311,7 @@ func (s *Service) scanDeposits(ctx context.Context, w WalletConfig) error {
 		if e != nil {
 			return e
 		}
+		var addressErrors []error
 		for _, a := range list {
 			since := a.CreatedAt
 			fullScan := a.FullScanned == nil || time.Since(*a.FullScanned) >= 24*time.Hour
@@ -322,13 +323,19 @@ func (s *Service) scanDeposits(ctx context.Context, w WalletConfig) error {
 			}
 			scanned := time.Now()
 			if e = s.scanAddress(ctx, w, a.DepositAddress, since); e != nil {
-				return e
+				if ctx.Err() != nil {
+					return ctx.Err()
+				}
+				// An unindexed or temporarily unavailable address must not block
+				// deposits belonging to all subsequent customers.
+				addressErrors = append(addressErrors, fmt.Errorf("wallet user %s: %w", a.UserID, e))
+				continue
 			}
 			if _, e = s.db.Exec(ctx, `UPDATE portal_wallet_addresses SET scanned_at=$2,full_scanned_at=CASE WHEN $3 THEN $2 ELSE full_scanned_at END WHERE user_id=$1`, a.UserID, scanned, fullScan); e != nil {
 				return e
 			}
 		}
-		return nil
+		return errors.Join(addressErrors...)
 	})
 }
 func (s *Service) scanAddress(ctx context.Context, w WalletConfig, a DepositAddress, since time.Time) error {

@@ -358,6 +358,10 @@ func TestWalletHTTPIntegration(t *testing.T) {
 	seen := atomic.Int32{}
 	mock := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		seen.Add(1)
+		if strings.Contains(r.URL.Path, "TMVQGm1qAQYVdetCeGRRkTWYYrLXuHK2HC") {
+			w.WriteHeader(404)
+			return
+		}
 		if r.URL.Path == "/walletsolidity/gettransactioninfobyid" {
 			jsonReply(w, 200, map[string]any{"id": key, "blockNumber": 123, "receipt": map[string]string{"result": "SUCCESS"}, "log": []any{map[string]any{"address": "a614f803b6fd780986a42c78ec9c7f77e6ded13c", "topics": []string{transferTopic, strings.Repeat("0", 64), "000000000000000000000000a614f803b6fd780986a42c78ec9c7f77e6ded13c"}, "data": fmt.Sprintf("%064x", MicroUSDT)}}})
 			return
@@ -387,6 +391,23 @@ func TestWalletHTTPIntegration(t *testing.T) {
 	}
 	if balance != MicroUSDT || seen.Load() != 4 {
 		t.Fatal("mock confirmed deposit not idempotent", balance, seen.Load())
+	}
+	_, e = s.db.Exec(ctx, `INSERT INTO portal_users(id,email,password_hash,role)VALUES('bad','bad@example.test',''::bytea,'customer'); INSERT INTO portal_wallet_addresses(user_id,address,derivation_index)VALUES('bad','TMVQGm1qAQYVdetCeGRRkTWYYrLXuHK2HC',0),('u','TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t',1);`)
+	if e != nil {
+		t.Fatal(e)
+	}
+	if e = s.scanDeposits(ctx, cfg); e == nil {
+		t.Fatal("missing address failure")
+	}
+	var goodScanned, badScanned bool
+	if e = s.db.QueryRow(ctx, `SELECT scanned_at IS NOT NULL FROM portal_wallet_addresses WHERE user_id='u'`).Scan(&goodScanned); e != nil {
+		t.Fatal(e)
+	}
+	if e = s.db.QueryRow(ctx, `SELECT scanned_at IS NOT NULL FROM portal_wallet_addresses WHERE user_id='bad'`).Scan(&badScanned); e != nil {
+		t.Fatal(e)
+	}
+	if !goodScanned || badScanned {
+		t.Fatal("one failed address blocked another customer or advanced a failed cursor")
 	}
 }
 
