@@ -1,4 +1,5 @@
 /bin/
+/models/
 /.env
 /.env.local
 *.log

@@ -24,7 +24,13 @@ type Submitter interface {
 	Submit(context.Context, platform.Account, platform.RunningPlan, platform.RunningArea, activity.SubmissionRequest) (protocol.SubmissionResult, activity.Run, error)
 }
 
+type Billing interface {
+	Reserve(context.Context, string, platform.JobContext) error
+	Finish(context.Context, string, bool) error
+}
+
 type Options struct {
+	Billing           Billing
 	Workers           int
 	WorkerConcurrency int
 	PollInterval      time.Duration
@@ -51,6 +57,7 @@ type workItem struct {
 }
 
 type Scheduler struct {
+	billing           Billing
 	store             store.Store
 	submitter         Submitter
 	pollInterval      time.Duration
@@ -88,7 +95,8 @@ func New(database store.Store, submitter Submitter, options Options) *Scheduler 
 		options.Logger = slog.Default()
 	}
 	return &Scheduler{
-		store: database, submitter: submitter, workerProcesses: options.Workers,
+		billing: options.Billing,
+		store:   database, submitter: submitter, workerProcesses: options.Workers,
 		workerConcurrency: options.WorkerConcurrency,
 		pollInterval:      options.PollInterval, runTimeout: options.RunTimeout, logger: options.Logger,
 		queue: make(chan workItem, 16*32*16),
@@ -293,6 +301,21 @@ func (s *Scheduler) execute(parent context.Context, item workItem, workerProcess
 		finish("failed", "目标协议提交服务未配置", nil, "")
 		return
 	}
+	if s.billing != nil {
+		if err := s.billing.Reserve(ctx, execution.ID, jobContext); err != nil {
+			s.skipped.Add(1)
+			finish("skipped", err.Error(), nil, "")
+			return
+		}
+	}
+	paidSuccess := false
+	defer func() {
+		if s.billing != nil {
+			if err := s.billing.Finish(context.WithoutCancel(ctx), execution.ID, paidSuccess); err != nil {
+				s.logger.Error("finalize execution charge", "execution_id", execution.ID, "error", err)
+			}
+		}
+	}()
 	submission, run, err := s.submitter.Submit(ctx, jobContext.Account, jobContext.Plan, jobContext.Area, activity.SubmissionRequest{
 		TargetDistanceM:      jobContext.Job.TargetDistanceM,
 		Profile:              jobContext.Plan.Profile,
@@ -315,6 +338,7 @@ func (s *Scheduler) execute(parent context.Context, item workItem, workerProcess
 		finish("failed", err.Error(), nil, "")
 		return
 	}
+	paidSuccess = true // Upstream succeeded even when local persistence later fails.
 	if err := s.store.Save(ctx, run); err != nil {
 		s.failed.Add(1)
 		finish("failed", err.Error(), nil, submission.RunRecordCode)

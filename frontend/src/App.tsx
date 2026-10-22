@@ -7,14 +7,17 @@ import {
 } from 'lucide-react'
 import { api } from './api'
 import AmapRouteViewport from './AmapRouteViewport'
+import { CommercialAdmin, WalletPage, PortraitsPage } from './PortalPages'
+import { money, portalRequest, type BillingSummary, type PortalUser } from './portal'
 import type {
   Account, Area, Config, Execution, FaceDetectionResult, FaceProfile, Job, MapMetrics, Plan, Point,
   RemoteRecordData, RemoteRecordInspection, Route, Run, RunListItem, RunTimeWindow, Sample, SystemSettings as SystemSettingsData, TargetSelection,
 } from './types'
 
-type Tab = 'overview' | 'accounts' | 'route_test' | 'automation' | 'settings'
+type Tab = 'overview' | 'accounts' | 'route_test' | 'automation' | 'settings' | 'commerce' | 'wallet' | 'photos'
 
-export default function App() {
+export default function App({user,onLogout}:{user:PortalUser;onLogout:()=>Promise<void>}) {
+  const customer=user.role==='customer'
   const [tab, setTab] = useState<Tab>('overview')
   const [config, setConfig] = useState<Config | null>(null)
   const [metrics, setMetrics] = useState<MapMetrics | null>(null)
@@ -35,7 +38,7 @@ export default function App() {
   const refresh = useCallback(async () => {
     try {
       const values = await Promise.all([
-        api.config(), api.metrics(), api.plans(), api.areas(), api.accounts(), api.jobs(), api.executions(), api.runs(),
+        api.config(), customer?Promise.resolve(null):api.metrics(), api.plans(), api.areas(), api.accounts(), api.jobs(), api.executions(), api.runs(),
       ])
       setConfig(values[0]); setMetrics(values[1]); setPlans(values[2]); setAreas(values[3])
       setAccounts(values[4]); setJobs(values[5]); setExecutions(values[6]); setRuns(values[7])
@@ -44,7 +47,7 @@ export default function App() {
     } finally {
       setLoading(false)
     }
-  }, [notify])
+  }, [notify,customer])
 
   useEffect(() => { void refresh() }, [refresh])
   useEffect(() => {
@@ -55,42 +58,47 @@ export default function App() {
   useEffect(() => {
     const timer = window.setInterval(async () => {
       try {
-        const [nextMetrics, nextExecutions, nextJobs, nextAccounts] = await Promise.all([api.metrics(), api.executions(), api.jobs(), api.accounts()])
+        const [nextMetrics, nextExecutions, nextJobs, nextAccounts] = await Promise.all([customer?Promise.resolve(null):api.metrics(), api.executions(), api.jobs(), api.accounts()])
         setMetrics(nextMetrics); setExecutions(nextExecutions); setJobs(nextJobs); setAccounts(nextAccounts)
       } catch { /* the next poll retries */ }
     }, 7000)
     return () => window.clearInterval(timer)
-  }, [])
+  }, [customer])
 
   const page = {
-    overview: <DashboardOverview accounts={accounts} plans={plans} areas={areas} jobs={jobs} executions={executions} runs={runs} metrics={metrics} config={config} onNavigate={setTab}/>,
+    overview: <DashboardOverview customer={customer} accounts={accounts} plans={plans} areas={areas} jobs={jobs} executions={executions} runs={runs} metrics={metrics} config={config} onNavigate={setTab}/>,
     accounts: <Accounts accounts={accounts} notify={notify} onRefresh={refresh}/>,
     route_test: <RouteTest accounts={accounts} plans={plans} areas={areas} runs={runs} metrics={metrics} config={config} notify={notify} onRefresh={refresh}/>,
-    automation: <Automation jobs={jobs} accounts={accounts} plans={plans} areas={areas} executions={executions} config={config} notify={notify} onRefresh={refresh}/>,
+    automation: <Automation jobs={jobs} accounts={accounts} plans={plans} areas={areas} executions={executions} config={config} customer={customer} notify={notify} onRefresh={refresh}/>,
     settings: <SystemSettingsPage config={config} notify={notify} onRefresh={refresh}/>,
+    commerce: <CommercialAdmin user={user} notify={notify}/>,
+    wallet: <WalletPage accounts={accounts} plans={plans} jobs={jobs} notify={notify}/>,
+    photos: <PortraitsPage accounts={accounts} notify={notify} onRefresh={refresh}/>,
   }[tab]
 
-  return <div className="app-shell">
+  return <div className={`app-shell ${customer?'customer-shell':''}`}>
     <aside className="sidebar">
-      <div className="brand"><div className="brand-mark"><Activity size={21}/></div><div><strong>EasyRun</strong><span>SMART RUNNING PLATFORM</span></div></div>
+      <div className="brand"><div className="brand-mark"><Activity size={21}/></div><div><strong>EasyRun</strong><span>{customer?'客户工作空间':'管理后台'}</span></div></div>
       <nav>
-        <NavItem active={tab === 'overview'} icon={<CircleGauge/>} label="运行总览" onClick={() => setTab('overview')}/>
-        <NavItem active={tab === 'accounts'} icon={<UsersRound/>} label="账号矩阵" count={accounts.length} onClick={() => setTab('accounts')}/>
-        <NavItem active={tab === 'route_test'} icon={<RouteIcon/>} label="路线测试" onClick={() => setTab('route_test')}/>
+        <NavItem active={tab === 'overview'} icon={<CircleGauge/>} label={customer?'我的总览':'运行总览'} onClick={() => setTab('overview')}/>
+        <NavItem active={tab === 'accounts'} icon={<UsersRound/>} label={customer?'我的账号':'账号矩阵'} count={accounts.length} onClick={() => setTab('accounts')}/>
+        {!customer&&<NavItem active={tab === 'route_test'} icon={<RouteIcon/>} label="路线测试" onClick={() => setTab('route_test')}/>}
         <NavItem active={tab === 'automation'} icon={<CalendarClock/>} label="自动任务" count={jobs.filter(job => job.enabled).length} onClick={() => setTab('automation')}/>
-        <NavItem active={tab === 'settings'} icon={<Settings2/>} label="系统配置" onClick={() => setTab('settings')}/>
+        <NavItem active={tab === 'photos'} icon={<ImagePlus/>} label="人脸上传页" onClick={() => setTab('photos')}/>
+        {customer?<NavItem active={tab === 'wallet'} icon={<KeyRound/>} label="余额与计费" onClick={() => setTab('wallet')}/>:<><NavItem active={tab === 'settings'} icon={<Settings2/>} label="系统配置" onClick={() => setTab('settings')}/><NavItem active={tab === 'commerce'} icon={<ShieldCheck/>} label="客户与商业配置" onClick={() => setTab('commerce')}/></>}
       </nav>
-      <div className="system-card">
+      {!customer&&<div className="system-card">
         <SystemRow icon={<Database/>} label="PostgreSQL" live={config?.database_configured}/>
         <SystemRow icon={<RadioTower/>} label="地图网关" live={config?.map_api_configured}/>
         <SystemRow icon={<LockKeyhole/>} label="目标协议" live={config?.protocol_configured}/>
         <div className="system-row"><Bot size={15}/><span>任务引擎</span><b>{config?.automation?.workers ?? 0} slots</b></div>
-      </div>
+      </div>}
+      <div className="portal-signed-in"><strong>{user.email}</strong><span>{({superadmin:'超级管理员',admin:'管理员',customer:'客户'} as const)[user.role]}</span><button onClick={()=>void onLogout().catch(e=>notify(e.message))}>退出登录</button></div>
       <div className="sidebar-foot"><ShieldCheck size={15}/><span>凭据加密保存 · Go 原生协议栈</span></div>
     </aside>
     <main className="main-stage">
       <header className="topbar">
-        <div><span className="overline">AUTOMATED RUNNING OPERATIONS</span><h1>{({overview:'运行总览', accounts:'账号矩阵', route_test:'路线测试', automation:'自动任务', settings:'系统配置'} as const)[tab]}</h1></div>
+        <div><span className="overline">{customer?'YOUR RUNNING WORKSPACE':'MANAGEMENT & OPERATIONS'}</span><h1>{({overview:customer?'我的总览':'运行总览', accounts:customer?'我的账号':'账号矩阵', route_test:'路线测试', automation:'自动任务', settings:'系统配置',commerce:'客户与商业配置',wallet:'余额与计费',photos:'人脸上传页'} as const)[tab]}</h1></div>
         <button className="icon-button" onClick={() => void refresh()} title="刷新"><RefreshCw size={17} className={loading ? 'spin' : ''}/></button>
       </header>
       {page}
@@ -107,7 +115,8 @@ function SystemRow({icon, label, live}: {icon:ReactNode; label:string; live?:boo
   return <div className="system-row">{icon}<span>{label}</span><i className={live ? 'live' : ''}/></div>
 }
 
-function DashboardOverview({accounts, plans, areas, jobs, executions, runs, metrics, config, onNavigate}: {
+function DashboardOverview({accounts, plans, areas, jobs, executions, runs, metrics, config, onNavigate,customer}: {
+  customer:boolean
   accounts:Account[]; plans:Plan[]; areas:Area[]; jobs:Job[]; executions:Execution[]; runs:RunListItem[]
   metrics:MapMetrics|null; config:Config|null; onNavigate:(tab:Tab)=>void
 }) {
@@ -124,17 +133,17 @@ function DashboardOverview({accounts, plans, areas, jobs, executions, runs, metr
     <section className="panel overview-command">
       <div className="overview-command-copy">
         <span className="kicker">LIVE OPERATIONS CENTER</span>
-        <h2>自动运行状态一屏掌握</h2>
-        <p>集中查看账号就绪度、任务排期、执行结果与服务状态；路线规划和数据预检已独立到「路线测试」。</p>
+        <h2>{customer?'今天的计划，一目了然':'自动运行状态一屏掌握'}</h2>
+        <p>{customer?'管理自己的多个账号，查看计划进度、任务安排与运行记录。每个账号独立配置，你的数据只属于你。':'集中查看账号就绪度、任务排期、执行结果与服务状态；路线规划和数据预检已独立到「路线测试」。'}</p>
         <div className="overview-actions">
           <button className="button primary" onClick={()=>onNavigate('automation')}><CalendarClock/>管理自动任务</button>
           <button className="button cyan" onClick={()=>onNavigate('accounts')}><UsersRound/>查看账号</button>
-          <button className="button subtle" onClick={()=>onNavigate('route_test')}><RouteIcon/>进入路线测试</button>
+          {!customer&&<button className="button subtle" onClick={()=>onNavigate('route_test')}><RouteIcon/>进入路线测试</button>}
         </div>
       </div>
       <div className="overview-live-orbit">
         <div className="overview-live-ring"><Activity/><strong>{activeExecutions.length}</strong><span>执行中 / 排队</span></div>
-        <div className="overview-live-caption"><i className={systemReady===3?'live':''}/><span>{systemReady===3?'核心服务全部在线':`${systemReady}/3 核心服务在线`}</span></div>
+        <div className="overview-live-caption"><i className={customer||systemReady===3?'live':''}/><span>{customer?'专属工作空间 · 数据独立隔离':systemReady===3?'核心服务全部在线':`${systemReady}/3 核心服务在线`}</span></div>
       </div>
     </section>
 
@@ -145,6 +154,7 @@ function DashboardOverview({accounts, plans, areas, jobs, executions, runs, metr
       <OverviewKPI tone="amber" icon={<BarChart3/>} label="本地累计跑量" value={`${(totalDistanceM/1000).toFixed(1)} km`} hint={`${runs.length} 条本地运行记录`}/>
     </section>
 
+    {customer&&plans.length>0&&<section className="panel portal-section"><div className="panel-heading"><div><span className="kicker">PLAN PROGRESS</span><h2>我的计划进度</h2></div></div><div className="record-progress-grid">{plans.map(plan=><div key={plan.id}><p className="portal-hint">{accounts.find(a=>a.id===plan.source_account_id)?.name}</p><PlanProgressCard plan={plan}/></div>)}</div></section>}
     <section className="overview-primary-grid">
       <div className="panel overview-schedule-panel">
         <div className="panel-heading"><div><span className="kicker">UPCOMING RUNS</span><h2>即将执行</h2></div><button className="text-action" onClick={()=>onNavigate('automation')}>全部任务 <ChevronRight/></button></div>
@@ -721,6 +731,7 @@ function Catalog({accounts, plans, areas, notify, onRefresh}: {accounts:Account[
 }
 
 type AutomationForm = {
+	 billingMode:string
   account:string; plan:string; area:string; distance:number; dailyLimit:number; weeklyLimit:number
   dailyDistanceLimit:number; weeklyDistanceLimit:number
   scheduleMode:'manual'|'plan_random'; manualTime:string
@@ -728,16 +739,19 @@ type AutomationForm = {
 }
 
 const emptyAutomationForm = ():AutomationForm => ({
+	 billingMode:'per_run',
   account:'', plan:'', area:'', distance:0, dailyLimit:0, weeklyLimit:0,
   dailyDistanceLimit:0, weeklyDistanceLimit:0,
   scheduleMode:'manual', manualTime:'06:30', dayScope:'every_day', timezone:'Asia/Shanghai',
 })
 
-function Automation({jobs, accounts, plans, areas, executions, config, notify, onRefresh}: {jobs:Job[]; accounts:Account[]; plans:Plan[]; areas:Area[]; executions:Execution[]; config:Config|null; notify:(message:string)=>void; onRefresh:()=>Promise<void>}) {
+function Automation({jobs, accounts, plans, areas, executions, config, customer, notify, onRefresh}: {jobs:Job[]; accounts:Account[]; plans:Plan[]; areas:Area[]; executions:Execution[]; config:Config|null; customer:boolean; notify:(message:string)=>void; onRefresh:()=>Promise<void>}) {
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<Job|null>(null)
   const [busy, setBusy] = useState('')
   const [form, setForm] = useState<AutomationForm>(emptyAutomationForm)
+  const [billing,setBilling]=useState<BillingSummary|null>(null)
+  useEffect(()=>{if(customer)void portalRequest<BillingSummary>('billing').then(setBilling).catch(e=>notify(e.message))},[customer,notify,jobs])
   const formPlans = plans.filter(item => item.source_account_id === form.account)
   const formAreas = areas.filter(item => item.source_account_id === form.account)
   const formPlan = formPlans.find(item => item.id === form.plan)
@@ -756,8 +770,13 @@ function Automation({jobs, accounts, plans, areas, executions, config, notify, o
         day_scope:form.scheduleMode === 'manual' ? form.dayScope : '',
         cron_expr:'', timezone:form.timezone,
       }
-      if (editing) await api.updateJob({...editing,...payload})
-      else await api.createJob({...payload,enabled:true})
+      if (editing) {
+        if(customer)await portalRequest(`jobs/${editing.id}/billing`,{mode:form.billingMode},'PUT')
+        await api.updateJob({...editing,...payload})
+      } else {
+        const created=await api.createJob({...payload,enabled:!customer})
+        if(customer){await portalRequest(`jobs/${created.id}/billing`,{mode:form.billingMode},'PUT');await api.updateJob({...created,enabled:true})}
+      }
       setOpen(false); setEditing(null); setForm(emptyAutomationForm())
       notify(editing ? '自动任务已更新，新的距离与排期已生效' : '自动任务已创建，下一次执行时间已锁定')
       await onRefresh()
@@ -769,6 +788,7 @@ function Automation({jobs, accounts, plans, areas, executions, config, notify, o
     const plan=plans.find(item=>item.id===job.plan_id)
     setEditing(job)
     setForm({
+      billingMode:billing?.job_modes[job.id]||'per_run',
       account:job.account_id, plan:job.plan_id, area:job.area_id,
       distance:plan?automationDefaultDistance(plan,job.target_distance_m):job.target_distance_m, scheduleMode:job.schedule_mode==='plan_random'?'plan_random':'manual',
       dailyLimit:job.daily_run_limit||defaultDailyLimit(plan), weeklyLimit:job.weekly_run_limit||defaultWeeklyLimit(plan),
@@ -806,6 +826,7 @@ function Automation({jobs, accounts, plans, areas, executions, config, notify, o
       </div>
       {formPlan && (countBasedPlan ? <CountPlanDistance plan={formPlan}/> : <DistancePicker title="任务跑步距离" plan={formPlan} value={form.distance} onChange={distance=>setForm({...form,distance})}/>)}
       {formPlan && <AutomationQuotaEditor plan={formPlan} dailyLimit={form.dailyLimit} weeklyLimit={form.weeklyLimit} dailyDistanceLimit={form.dailyDistanceLimit} weeklyDistanceLimit={form.weeklyDistanceLimit} onChange={(dailyLimit,weeklyLimit,dailyDistanceLimit,weeklyDistanceLimit)=>setForm({...form,dailyLimit,weeklyLimit,dailyDistanceLimit,weeklyDistanceLimit})}/>}
+      {customer&&billing&&<div className="schedule-editor"><Field label={billing.pricing.enabled?'本任务计费方式':'本任务计费方式（当前计费未开启）'}><select value={form.billingMode} onChange={e=>setForm({...form,billingMode:e.target.value})}><option value="per_run">按次 · {money(billing.pricing.per_run_micro)} USDT / 次</option><option value="per_km">按公里 · {money(billing.pricing.per_km_micro)} USDT / km</option><option value="plan_package">完整计划套餐（需在余额与计费中先购买）</option></select></Field><p className="portal-hint">余额 {money(billing.user.balance_micro)} USDT；成功提交结算，失败 / 跳过退还预扣。</p></div>}
       <div className="schedule-editor">
         <div className="schedule-editor-head"><span>执行时间策略</span><small>随机时间在创建任务时写入数据库，服务重启不会变化</small></div>
         <div className="schedule-mode-grid">

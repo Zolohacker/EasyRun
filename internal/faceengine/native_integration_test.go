@@ -1,4 +1,4 @@
-//go:build windows && amd64 && cgo
+//go:build cgo && ((windows && amd64) || (linux && (amd64 || arm64)))
 
 package faceengine
 

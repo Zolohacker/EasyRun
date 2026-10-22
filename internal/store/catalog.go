@@ -32,7 +32,7 @@ VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING created_at,updated_at`
 }
 
 func (s *PostgresStore) ListPlans(ctx context.Context) ([]platform.RunningPlan, error) {
-	rows, err := s.pool.Query(ctx, `SELECT `+planColumns+` FROM running_plans ORDER BY created_at DESC`)
+	rows, err := s.pool.Query(ctx, `SELECT `+planColumns+` FROM running_plans WHERE ($1='' OR source_account_id IN(SELECT id FROM runner_accounts WHERE owner_user_id=$1)) ORDER BY created_at DESC`, ownerFilter(ctx))
 	if err != nil {
 		return nil, fmt.Errorf("list plans: %w", err)
 	}
@@ -92,7 +92,7 @@ VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING created_at,updated_at`
 }
 
 func (s *PostgresStore) ListAreas(ctx context.Context) ([]platform.RunningArea, error) {
-	rows, err := s.pool.Query(ctx, `SELECT `+areaColumns+` FROM running_areas ORDER BY created_at DESC`)
+	rows, err := s.pool.Query(ctx, `SELECT `+areaColumns+` FROM running_areas WHERE ($1='' OR source_account_id IN(SELECT id FROM runner_accounts WHERE owner_user_id=$1)) ORDER BY created_at DESC`, ownerFilter(ctx))
 	if err != nil {
 		return nil, fmt.Errorf("list areas: %w", err)
 	}
@@ -139,10 +139,10 @@ func (s *PostgresStore) CreateAccount(ctx context.Context, account platform.Acco
 id,login_name,name,note,enabled,default_plan_id,default_area_id,fence_index,device_id,model_name,system_version,
 school_code,school_name,student_number,auth_status,auth_message,last_auth_at,password_cipher,session_cipher,
 face_enabled,face_auth,face_similarity_value,face_time,face_body_enabled,face_body_rate,face_model_type,
-face_base_url,face_base_cipher,face_base_mime,face_custom_cipher,face_custom_mime,face_synced_at)
+face_base_url,face_base_cipher,face_base_mime,face_custom_cipher,face_custom_mime,face_synced_at,owner_user_id)
 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,
         COALESCE($18, ''::bytea), COALESCE($19, ''::bytea),$20,$21,$22,$23,$24,$25,$26,$27,
-        COALESCE($28, ''::bytea),$29,COALESCE($30, ''::bytea),$31,$32)
+        COALESCE($28, ''::bytea),$29,COALESCE($30, ''::bytea),$31,$32,$33)
 RETURNING created_at,updated_at`
 	if err := s.pool.QueryRow(ctx, query,
 		account.ID, account.LoginName, account.Name, account.Note, account.Enabled, account.DefaultPlanID, account.DefaultAreaID,
@@ -150,7 +150,7 @@ RETURNING created_at,updated_at`
 		account.StudentNumber, account.AuthStatus, account.AuthMessage, account.LastAuthAt, account.PasswordCipher, account.SessionCipher,
 		account.FaceEnabled, account.FaceAuth, account.FaceSimilarityValue, account.FaceTime, account.FaceBodyEnabled,
 		account.FaceBodyRate, account.FaceModelType, account.FaceBaseURL, account.FaceBaseCipher, account.FaceBaseMIME,
-		account.FaceCustomCipher, account.FaceCustomMIME, account.FaceSyncedAt,
+		account.FaceCustomCipher, account.FaceCustomMIME, account.FaceSyncedAt, account.OwnerUserID,
 	).Scan(&account.CreatedAt, &account.UpdatedAt); err != nil {
 		return platform.Account{}, fmt.Errorf("insert account: %w", err)
 	}
@@ -161,7 +161,7 @@ RETURNING created_at,updated_at`
 }
 
 func (s *PostgresStore) ListAccounts(ctx context.Context) ([]platform.Account, error) {
-	rows, err := s.pool.Query(ctx, `SELECT `+accountColumns+` FROM runner_accounts ORDER BY created_at DESC`)
+	rows, err := s.pool.Query(ctx, `SELECT `+accountColumns+` FROM runner_accounts WHERE ($1='' OR owner_user_id=$1) ORDER BY created_at DESC`, ownerFilter(ctx))
 	if err != nil {
 		return nil, fmt.Errorf("list accounts: %w", err)
 	}
@@ -250,7 +250,7 @@ func scanArea(row scanner) (platform.RunningArea, error) {
 const accountColumns = `id,login_name,name,note,enabled,default_plan_id,default_area_id,fence_index,device_id,model_name,
 system_version,school_code,school_name,student_number,auth_status,auth_message,last_auth_at,password_cipher,session_cipher,
 face_enabled,face_auth,face_similarity_value,face_time,face_body_enabled,face_body_rate,face_model_type,
-face_base_url,face_base_cipher,face_base_mime,face_custom_cipher,face_custom_mime,face_synced_at,created_at,updated_at`
+face_base_url,face_base_cipher,face_base_mime,face_custom_cipher,face_custom_mime,face_synced_at,owner_user_id,created_at,updated_at`
 
 func scanAccount(row scanner) (platform.Account, error) {
 	var account platform.Account
@@ -260,7 +260,7 @@ func scanAccount(row scanner) (platform.Account, error) {
 		&account.StudentNumber, &account.AuthStatus, &account.AuthMessage, &account.LastAuthAt, &account.PasswordCipher, &account.SessionCipher,
 		&account.FaceEnabled, &account.FaceAuth, &account.FaceSimilarityValue, &account.FaceTime, &account.FaceBodyEnabled,
 		&account.FaceBodyRate, &account.FaceModelType, &account.FaceBaseURL, &account.FaceBaseCipher, &account.FaceBaseMIME,
-		&account.FaceCustomCipher, &account.FaceCustomMIME, &account.FaceSyncedAt,
+		&account.FaceCustomCipher, &account.FaceCustomMIME, &account.FaceSyncedAt, &account.OwnerUserID,
 		&account.CreatedAt, &account.UpdatedAt,
 	); errors.Is(err, pgx.ErrNoRows) {
 		return platform.Account{}, ErrNotFound

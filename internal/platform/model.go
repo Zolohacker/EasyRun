@@ -51,6 +51,7 @@ type RunningArea struct {
 
 type Account struct {
 	ID                   string     `json:"id"`
+	OwnerUserID          string     `json:"owner_user_id,omitempty"`
 	LoginName            string     `json:"login_name"`
 	Name                 string     `json:"name"`
 	StudentNumber        string     `json:"student_number,omitempty"`

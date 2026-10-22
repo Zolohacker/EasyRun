@@ -24,7 +24,7 @@ VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING cr
 }
 
 func (s *PostgresStore) ListJobs(ctx context.Context) ([]platform.AutomationJob, error) {
-	rows, err := s.pool.Query(ctx, `SELECT `+jobColumns+` FROM automation_jobs ORDER BY created_at DESC`)
+	rows, err := s.pool.Query(ctx, `SELECT `+jobColumns+` FROM automation_jobs WHERE ($1='' OR account_id IN(SELECT id FROM runner_accounts WHERE owner_user_id=$1)) ORDER BY created_at DESC`, ownerFilter(ctx))
 	if err != nil {
 		return nil, fmt.Errorf("list automation jobs: %w", err)
 	}
@@ -135,7 +135,7 @@ func (s *PostgresStore) ListExecutions(ctx context.Context, limit int) ([]platfo
 		limit = 100
 	}
 	rows, err := s.pool.Query(ctx, `SELECT id,job_id,account_id,scheduled_for,started_at,finished_at,status,run_id,remote_run_id,error
-FROM automation_executions ORDER BY started_at DESC LIMIT $1`, limit)
+FROM automation_executions WHERE ($2='' OR account_id IN(SELECT id FROM runner_accounts WHERE owner_user_id=$2)) ORDER BY started_at DESC LIMIT $1`, limit, ownerFilter(ctx))
 	if err != nil {
 		return nil, fmt.Errorf("list automation executions: %w", err)
 	}

@@ -95,6 +95,9 @@ func NewPostgres(ctx context.Context, options PostgresOptions) (*PostgresStore, 
 
 func (s *PostgresStore) Close() { s.pool.Close() }
 
+// Pool is shared by the transactional identity and billing services.
+func (s *PostgresStore) Pool() *pgxpool.Pool { return s.pool }
+
 func (s *PostgresStore) Ping(ctx context.Context) error { return s.pool.Ping(ctx) }
 
 func (s *PostgresStore) migrate(ctx context.Context) error {
@@ -311,6 +314,9 @@ CREATE UNIQUE INDEX IF NOT EXISTS automation_one_running_per_job_idx ON automati
 	if _, err := s.pool.Exec(ctx, schema); err != nil {
 		return fmt.Errorf("migrate PostgreSQL schema: %w", err)
 	}
+	if _, err := s.pool.Exec(ctx, `ALTER TABLE runner_accounts ADD COLUMN IF NOT EXISTS owner_user_id text NOT NULL DEFAULT ''; CREATE INDEX IF NOT EXISTS runner_accounts_owner_idx ON runner_accounts(owner_user_id);`); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -366,8 +372,9 @@ func (s *PostgresStore) List(ctx context.Context, limit int) ([]activity.ListIte
 SELECT id, started_at, generated_at, distance_m, duration_s,
        average_pace_sec_per_km, total_steps, valid
 FROM running_activities
+WHERE ($2='' OR account_id IN(SELECT id FROM runner_accounts WHERE owner_user_id=$2))
 ORDER BY started_at DESC
-LIMIT $1`, limit)
+LIMIT $1`, limit, ownerFilter(ctx))
 	if err != nil {
 		return nil, fmt.Errorf("list runs: %w", err)
 	}

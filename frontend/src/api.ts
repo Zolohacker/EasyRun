@@ -5,6 +5,7 @@ async function request<T>(url: string, options: RequestInit = {}): Promise<T> {
   const body = response.status === 204 ? null : await response.json().catch(() => null)
   if (!response.ok) {
     if (body?.error?.code === 'session_expired') window.dispatchEvent(new CustomEvent('runner-session-expired'))
+    else if (response.status === 401) window.dispatchEvent(new Event('platform-session-expired'))
     throw new Error(body?.error?.message || `请求失败：HTTP ${response.status}`)
   }
   return body as T

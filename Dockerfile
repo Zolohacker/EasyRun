@@ -5,16 +5,17 @@ RUN cd frontend && npm ci
 COPY frontend ./frontend
 RUN mkdir -p internal/httpapi/web/dist && cd frontend && npm run build
 
-FROM golang:1.23-alpine AS build
+FROM golang:1.23-bookworm AS build
+RUN apt-get update && apt-get install -y --no-install-recommends gcc libc6-dev && rm -rf /var/lib/apt/lists/*
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
 COPY --from=web /src/internal/httpapi/web/dist ./internal/httpapi/web/dist
-RUN CGO_ENABLED=0 GOOS=linux go build -buildvcs=false -trimpath -ldflags="-s -w" -o /out/easyrun ./cmd/server
+RUN CGO_ENABLED=1 GOOS=linux go build -buildvcs=false -trimpath -ldflags="-s -w" -o /out/easyrun ./cmd/server
 
-FROM alpine:3.21
-RUN apk add --no-cache ca-certificates tzdata && adduser -D -H -u 10001 app
+FROM debian:bookworm-slim
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates tzdata libstdc++6 libgomp1 && rm -rf /var/lib/apt/lists/* && useradd -M -u 10001 app
 USER app
 WORKDIR /app
 COPY --from=build /out/easyrun /usr/local/bin/easyrun

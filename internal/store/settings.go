@@ -63,6 +63,9 @@ func (s *PostgresStore) UpdateSystemSettings(ctx context.Context, value platform
 		value.MapAPIKeyCipher = value.MapAPIKeys[0].KeyCipher
 		value.MapQPS = value.MapAPIKeys[0].QPS
 	}
+	if value.MapAPIKeys == nil {
+		value.MapAPIKeys = []platform.MapAPIKey{}
+	}
 	keysJSON, err := json.Marshal(value.MapAPIKeys)
 	if err != nil {
 		return platform.SystemSettings{}, fmt.Errorf("encode map API keys: %w", err)
@@ -71,7 +74,7 @@ func (s *PostgresStore) UpdateSystemSettings(ctx context.Context, value platform
 	err = s.pool.QueryRow(ctx, `
 INSERT INTO system_settings (
     singleton_id, map_api_key_cipher, map_qps, map_api_keys, worker_processes, worker_concurrency, updated_at
-) VALUES (1,$1,$2,$3,$4,$5,now())
+) VALUES (1,COALESCE($1,''::bytea),$2,$3,$4,$5,now())
 ON CONFLICT (singleton_id) DO UPDATE SET
     map_api_key_cipher=EXCLUDED.map_api_key_cipher,
     map_qps=EXCLUDED.map_qps,

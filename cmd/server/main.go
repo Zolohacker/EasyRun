@@ -17,6 +17,7 @@ import (
 	"github.com/Zolohacker/EasyRun/internal/httpapi"
 	"github.com/Zolohacker/EasyRun/internal/mapapi"
 	"github.com/Zolohacker/EasyRun/internal/platform"
+	"github.com/Zolohacker/EasyRun/internal/portal"
 	"github.com/Zolohacker/EasyRun/internal/protocol"
 	"github.com/Zolohacker/EasyRun/internal/route"
 	"github.com/Zolohacker/EasyRun/internal/runner"
@@ -145,16 +146,42 @@ func main() {
 		PersistentCache: runStore,
 	})
 	planner := route.NewPlanner(mapClient, cfg.MapRouteCandidates)
-	runService := runner.New(runStore, vault, protocolClient, planner)
-	scheduler := automation.New(runStore, runService, automation.Options{
+	scopedStore := store.TenantStore{Store: runStore}
+	portalCtx, portalCancel := context.WithTimeout(runCtx, cfg.DatabaseTimeout)
+	portalService, err := portal.New(portalCtx, runStore.Pool(), vault, scopedStore)
+	portalCancel()
+	if err != nil {
+		logger.Error("initialize customer portal", "error", err)
+		os.Exit(2)
+	}
+	runService := runner.New(scopedStore, vault, protocolClient, planner)
+	portalService.Faces = runService
+	go portalService.Run(runCtx)
+	scheduler := automation.New(scopedStore, runService, automation.Options{
+		Billing: portalService,
 		Workers: cfg.AutomationWorkers, WorkerConcurrency: cfg.AutomationWorkerConcurrency, PollInterval: cfg.AutomationPoll,
 		RunTimeout: cfg.AutomationRunTimeout, Logger: logger,
 	})
-	scheduler.Start(runCtx)
+	go func() {
+		ticker := time.NewTicker(time.Second)
+		defer ticker.Stop()
+		for {
+			if ready, err := portalService.Initialized(runCtx); err == nil && ready {
+				scheduler.Start(runCtx)
+				return
+			}
+			select {
+			case <-runCtx.Done():
+				return
+			case <-ticker.C:
+			}
+		}
+	}()
 
 	handler := httpapi.New(httpapi.Dependencies{
+		Portal:     portalService,
 		Planner:    planner,
-		Store:      runStore,
+		Store:      scopedStore,
 		Logger:     logger,
 		Config:     cfg,
 		MapRuntime: mapClient,

@@ -1,11 +1,25 @@
-//go:build windows && amd64 && cgo
+//go:build cgo && ((windows && amd64) || (linux && (amd64 || arm64)))
 
 package faceengine
 
 /*
 #cgo CFLAGS: -std=c11
+#cgo linux LDFLAGS: -ldl
+#ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#else
+#include <dlfcn.h>
+#include <stdio.h>
+typedef void* HMODULE;
+typedef void* FARPROC;
+#define __cdecl
+#define _TRUNCATE 0
+#define _snprintf_s(buffer, size, truncate, ...) snprintf(buffer, size, __VA_ARGS__)
+static HMODULE LoadLibraryA(const char* path) { return dlopen(path, RTLD_NOW | RTLD_LOCAL); }
+static FARPROC GetProcAddress(HMODULE module, const char* name) { return dlsym(module, name); }
+static void FreeLibrary(HMODULE module) { dlclose(module); }
+#endif
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -63,6 +77,7 @@ typedef struct {
 typedef HResult (__cdecl *fnLaunch)(const char*);
 typedef HResult (__cdecl *fnTerminate)(void);
 typedef HResult (__cdecl *fnCreateSessionV2)(const HFSessionConfigV2*, HFSession*);
+typedef HResult (__cdecl *fnCreateSessionOptional)(int32_t, int32_t, int32_t, int32_t, int32_t, HFSession*);
 typedef HResult (__cdecl *fnReleaseSession)(HFSession);
 typedef HResult (__cdecl *fnCreateStream)(HFImageData*, HFImageStream*);
 typedef HResult (__cdecl *fnReleaseStream)(HFImageStream);
@@ -78,6 +93,7 @@ typedef struct {
     fnLaunch launch;
     fnTerminate terminate;
     fnCreateSessionV2 createSession;
+    fnCreateSessionOptional createSessionOptional;
     fnReleaseSession releaseSession;
     fnCreateStream createStream;
     fnReleaseStream releaseStream;
@@ -124,7 +140,11 @@ static IFEngine* if_engine_open(const char* dllPath, const char* packPath, int d
     engine->module = LoadLibraryA(dllPath);
     if (!engine->module) {
         char message[256];
+#ifdef _WIN32
         _snprintf_s(message, sizeof(message), _TRUNCATE, "load face engine DLL failed (win32=%lu)", GetLastError());
+#else
+        _snprintf_s(message, sizeof(message), _TRUNCATE, "load face engine shared library failed: %s", dlerror());
+#endif
         if_error(err, errcap, message, INT32_MIN);
         free(engine);
         return NULL;
@@ -133,7 +153,10 @@ static IFEngine* if_engine_open(const char* dllPath, const char* packPath, int d
 #define IF_LOAD(field, type, name) do { engine->field = (type)if_symbol(engine->module, name, err, errcap); if (!engine->field) goto fail; } while (0)
     IF_LOAD(launch, fnLaunch, "HFLaunchInspireFace");
     IF_LOAD(terminate, fnTerminate, "HFTerminateInspireFace");
-    IF_LOAD(createSession, fnCreateSessionV2, "HFCreateInspireFaceSessionV2");
+    engine->createSession = (fnCreateSessionV2)GetProcAddress(engine->module, "HFCreateInspireFaceSessionV2");
+    if (!engine->createSession) {
+        IF_LOAD(createSessionOptional, fnCreateSessionOptional, "HFCreateInspireFaceSessionOptional");
+    }
     IF_LOAD(releaseSession, fnReleaseSession, "HFReleaseInspireFaceSession");
     IF_LOAD(createStream, fnCreateStream, "HFCreateImageStream");
     IF_LOAD(releaseStream, fnReleaseStream, "HFReleaseImageStream");
@@ -159,7 +182,11 @@ static IFEngine* if_engine_open(const char* dllPath, const char* packPath, int d
     config.maxDetectFaceNum = 1;
     config.detectPixelLevel = detectPixelSize;
     config.trackByDetectModeFPS = -1;
-    status = engine->createSession(&config, &engine->session);
+    if (engine->createSession) {
+        status = engine->createSession(&config, &engine->session);
+    } else {
+        status = engine->createSessionOptional(0x00000002, 0, 1, detectPixelSize, -1, &engine->session);
+    }
     if (status != 0 || !engine->session) {
         if_error(err, errcap, "create face recognition session", status);
         goto fail_launched;

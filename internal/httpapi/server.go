@@ -18,6 +18,7 @@ import (
 	"github.com/Zolohacker/EasyRun/internal/automation"
 	"github.com/Zolohacker/EasyRun/internal/config"
 	"github.com/Zolohacker/EasyRun/internal/mapapi"
+	"github.com/Zolohacker/EasyRun/internal/portal"
 	"github.com/Zolohacker/EasyRun/internal/protocol"
 	"github.com/Zolohacker/EasyRun/internal/route"
 	"github.com/Zolohacker/EasyRun/internal/runner"
@@ -39,6 +40,7 @@ type MapRuntime interface {
 }
 
 type Dependencies struct {
+	Portal     *portal.Service
 	Planner    RoutePlanner
 	Store      store.Store
 	Logger     *slog.Logger
@@ -78,6 +80,9 @@ func New(dependencies Dependencies) http.Handler {
 		vault:      dependencies.Vault,
 	}
 	mux := http.NewServeMux()
+	if dependencies.Portal != nil {
+		dependencies.Portal.Mount(mux)
+	}
 	mux.HandleFunc("GET /healthz", a.health)
 	mux.HandleFunc("GET /api/v1/config", a.getConfig)
 	mux.HandleFunc("GET /api/v1/system/settings", a.getSystemSettings)
@@ -132,8 +137,26 @@ func New(dependencies Dependencies) http.Handler {
 	if err != nil {
 		panic(err)
 	}
-	mux.Handle("GET /", http.FileServer(http.FS(content)))
-	return a.middleware(mux)
+	files := http.FileServer(http.FS(content))
+	mux.Handle("GET /", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/admin" || r.URL.Path == "/app" || r.URL.Path == "/login" || strings.HasPrefix(r.URL.Path, "/face-upload/") {
+			raw, err := fs.ReadFile(content, "index.html")
+			if err != nil {
+				http.Error(w, "application unavailable", 503)
+				return
+			}
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.Header().Set("Cache-Control", "no-store")
+			_, _ = w.Write(raw)
+			return
+		}
+		files.ServeHTTP(w, r)
+	}))
+	var handler http.Handler = mux
+	if dependencies.Portal != nil {
+		handler = dependencies.Portal.Wrap(handler)
+	}
+	return a.middleware(handler)
 }
 
 func (a *api) health(w http.ResponseWriter, _ *http.Request) {
