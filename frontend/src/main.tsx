@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import App from './PortalRoot'
 import 'leaflet/dist/leaflet.css'
 import './styles.css'
+import './workspace-layout.css'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode><App /></StrictMode>,

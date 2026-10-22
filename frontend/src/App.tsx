@@ -137,9 +137,8 @@ function DashboardOverview({accounts, plans, areas, jobs, executions, runs, metr
   return <div className="page-stack overview-page">
     <section className="panel overview-command">
       <div className="overview-command-copy">
-        <span className="kicker">LIVE OPERATIONS CENTER</span>
         <h2>{customer?'今天的计划，一目了然':'自动运行状态一屏掌握'}</h2>
-        <p>{customer?'管理自己的多个账号，查看计划进度、任务安排与运行记录。每个账号独立配置，你的数据只属于你。':'集中查看账号就绪度、任务排期、执行结果与服务状态；路线规划和数据预检已独立到「路线测试」。'}</p>
+        <p>{customer?'集中查看账号、计划进度与任务安排。':'集中查看账号就绪度、任务排期与执行结果。'}</p>
         <div className="overview-actions">
           <button className="button primary" onClick={()=>onNavigate('automation')}><CalendarClock/>管理自动任务</button>
           <button className="button cyan" onClick={()=>onNavigate('accounts')}><UsersRound/>查看账号</button>
@@ -161,13 +160,28 @@ function DashboardOverview({accounts, plans, areas, jobs, executions, runs, metr
 
     {customer&&plans.length>0&&<section className="panel portal-section"><div className="panel-heading"><div><span className="kicker">PLAN PROGRESS</span><h2>我的计划进度</h2></div></div><div className="record-progress-grid">{plans.map(plan=><div key={plan.id}><p className="portal-hint">{accounts.find(a=>a.id===plan.source_account_id)?.name}</p><PlanProgressCard plan={plan}/></div>)}</div></section>}
     <section className="overview-primary-grid">
-      <div className="panel overview-schedule-panel">
-        <div className="panel-heading"><div><span className="kicker">UPCOMING RUNS</span><h2>即将执行</h2></div><button className="text-action" onClick={()=>onNavigate('automation')}>全部任务 <ChevronRight/></button></div>
-        <div className="overview-schedule-list">{nextJobs.map(job=>{const owner=accounts.find(item=>item.id===job.account_id);const plan=plans.find(item=>item.id===job.plan_id);return <div className="overview-schedule-row" key={job.id}><div className="schedule-date"><strong>{job.next_run_at?dateDay(job.next_run_at,job.timezone):'—'}</strong><span>{job.next_run_at?dateClock(job.next_run_at,job.timezone):'—'}</span></div><div><strong>{owner?accountDisplayName(owner):'账号已移除'}</strong><span>{plan?.name||'计划待同步'} · {quotaLabel(job,plan)}</span></div><div className="schedule-distance"><b>{automationDistanceLabel(job,plan)}</b><span>{scheduleLabel(job)}</span></div></div>})}{!nextJobs.length&&<Empty text="暂无已启用的任务排期"/>}</div>
+      <div className="panel overview-grid-card overview-schedule-panel">
+        <div className="panel-heading"><h2>即将执行</h2><button className="text-action" onClick={()=>onNavigate('automation')}>全部任务 <ChevronRight/></button></div>
+        <div className="overview-scroll-list overview-schedule-list" role="region" aria-label="即将执行列表" tabIndex={0}>
+          {nextJobs.map(job=>{
+            const owner=accounts.find(item=>item.id===job.account_id)
+            const plan=plans.find(item=>item.id===job.plan_id)
+            return <div className="overview-schedule-row" key={job.id}>
+              <div className="schedule-date" title={job.next_run_at?dateTimeInZone(job.next_run_at,job.timezone):undefined}><strong>{job.next_run_at?dateDay(job.next_run_at,job.timezone):'—'}</strong><span>{job.next_run_at?dateClock(job.next_run_at,job.timezone):'—'}</span></div>
+              <div className="overview-row-main">
+                <strong title={owner?accountSelectorLabel(owner):undefined}>{owner?accountDisplayName(owner):'账号已移除'}</strong>
+                <span title={plan?.name}>{plan?.name||'计划待同步'}</span>
+                <small title={quotaLabel(job,plan)}>{quotaLabel(job,plan)}</small>
+              </div>
+              <div className="schedule-distance"><b>{automationDistanceLabel(job,plan)}</b><span>{scheduleLabel(job)}</span></div>
+            </div>
+          })}
+          {!nextJobs.length&&<Empty text="暂无已启用的任务排期"/>}
+        </div>
       </div>
-      <div className="panel overview-health-panel">
-        <div className="panel-heading"><div><span className="kicker">SERVICE HEALTH</span><h2>运行基础设施</h2></div><span className={`status-pill ${systemReady===3?'ok':'warn'}`}>{systemReady}/3 ONLINE</span></div>
-        <div className="overview-health-list">
+      <div className="panel overview-grid-card overview-health-panel">
+        <div className="panel-heading"><h2>运行基础设施</h2><span className={`status-pill ${systemReady===3?'ok':'warn'}`}>{systemReady}/3 核心服务在线</span></div>
+        <div className="overview-scroll-list overview-health-list" role="region" aria-label="运行基础设施状态" tabIndex={0}>
           <HealthRow icon={<Database/>} label="PostgreSQL" detail="账号、任务与缓存持久化" live={!!config?.database_configured}/>
           <HealthRow icon={<RadioTower/>} label="地图服务" detail={`${metrics?.qps??config?.map_rate_limit.qps??0} 汇总 QPS · ${metrics?.key_count??config?.map_rate_limit.key_count??0} 个 Key · 当前 ${metrics?.inflight??0} 并发`} live={!!config?.map_api_configured}/>
           <HealthRow icon={<Server/>} label="目标协议" detail={config?`${config.client_protocol.app_version} · ${config.client_protocol.environment_name}`:'正在读取配置'} live={!!config?.protocol_configured}/>
@@ -177,13 +191,41 @@ function DashboardOverview({accounts, plans, areas, jobs, executions, runs, metr
     </section>
 
     <section className="overview-secondary-grid">
-      <div className="panel overview-execution-panel">
-        <div className="panel-heading"><div><span className="kicker">RECENT ACTIVITY</span><h2>最近执行</h2></div><span className="count-badge">{executions.length}</span></div>
-        <div className="overview-execution-list">{recentExecutions.map(execution=>{const job=jobs.find(item=>item.id===execution.job_id);const plan=plans.find(item=>item.id===job?.plan_id);const owner=accounts.find(item=>item.id===execution.account_id);return <div className="overview-execution-row" key={execution.id}><span className={`exec-status ${execution.status}`}>{executionStatusLabel(execution.status)}</span><div><strong>{owner?accountDisplayName(owner):execution.account_id}</strong><span>{plan?.name||'计划已移除'} · {dateTime(execution.started_at)}</span></div><code>{execution.remote_run_id||execution.error||'等待执行结果'}</code></div>})}{!recentExecutions.length&&<Empty text="暂无任务执行记录"/>}</div>
+      <div className="panel overview-grid-card overview-execution-panel">
+        <div className="panel-heading"><h2>最近执行</h2><button className="text-action" onClick={()=>onNavigate('logs')}>执行日志 <ChevronRight/></button></div>
+        <div className="overview-scroll-list overview-execution-list" role="region" aria-label="最近执行列表" tabIndex={0}>
+          {recentExecutions.map(execution=>{
+            const job=jobs.find(item=>item.id===execution.job_id)
+            const plan=plans.find(item=>item.id===job?.plan_id)
+            const owner=accounts.find(item=>item.id===execution.account_id)
+            const result=execution.remote_run_id||execution.error||'等待执行结果'
+            return <div className="overview-execution-row" key={execution.id}>
+              <span className={`exec-status ${execution.status}`}>{executionStatusLabel(execution.status)}</span>
+              <div className="overview-row-main">
+                <div className="overview-execution-meta"><strong title={owner?accountSelectorLabel(owner):execution.account_id}>{owner?accountDisplayName(owner):execution.account_id}</strong><time dateTime={execution.started_at}>{dateTime(execution.started_at)}</time></div>
+                <span title={plan?.name}>{plan?.name||'计划已移除'}</span>
+                <code title={result}>{result}</code>
+              </div>
+            </div>
+          })}
+          {!recentExecutions.length&&<Empty text="暂无任务执行记录"/>}
+        </div>
       </div>
-      <div className="panel overview-account-panel">
-        <div className="panel-heading"><div><span className="kicker">ACCOUNT READINESS</span><h2>账号就绪度</h2></div><button className="text-action" onClick={()=>onNavigate('accounts')}>账号管理 <ChevronRight/></button></div>
-        <div className="overview-account-list">{accounts.slice(0,6).map(account=>{const accountPlans=plans.filter(item=>item.source_account_id===account.id).length;const accountAreas=areas.filter(item=>item.source_account_id===account.id).length;return <div className="overview-account-row" key={account.id}><div className="avatar compact">{accountInitials(account)}</div><div><strong>{accountDisplayName(account)}</strong><span>{accountStudentNumber(account)} · {accountSchoolName(account)}</span></div><div className="account-readiness"><b className={account.session_configured?'ready':''}>{account.session_configured?'已就绪':'待登录'}</b><span>{accountPlans} 计划 · {accountAreas} 区域</span></div></div>})}{!accounts.length&&<Empty text="暂无账号，请先添加并登录"/>}</div>
+      <div className="panel overview-grid-card overview-account-panel">
+        <div className="panel-heading"><h2>账号就绪度</h2><button className="text-action" onClick={()=>onNavigate('accounts')}>账号管理 <ChevronRight/></button></div>
+        <div className="overview-scroll-list overview-account-list" role="region" aria-label="账号就绪度列表" tabIndex={0}>
+          {accounts.slice(0,6).map(account=>{
+            const accountPlans=plans.filter(item=>item.source_account_id===account.id).length
+            const accountAreas=areas.filter(item=>item.source_account_id===account.id).length
+            const detail=`${accountStudentNumber(account)} · ${accountSchoolName(account)}`
+            return <div className="overview-account-row" key={account.id}>
+              <div className="avatar compact">{accountInitials(account)}</div>
+              <div className="overview-row-main"><strong title={accountSelectorLabel(account)}>{accountDisplayName(account)}</strong><span title={detail}>{detail}</span></div>
+              <div className="account-readiness"><b className={account.session_configured?'ready':''}>{account.session_configured?'已就绪':'待登录'}</b><span>{accountPlans} 计划 · {accountAreas} 区域</span></div>
+            </div>
+          })}
+          {!accounts.length&&<Empty text="暂无账号，请先添加并登录"/>}
+        </div>
       </div>
     </section>
   </div>
@@ -901,7 +943,7 @@ const mapKeyDraft = (id='', masked='', qps=3):MapKeyDraft => ({clientID:id||`new
 
 function SystemSettingsPage({config,user,notify,onRefresh}:{config:Config|null;user:PortalUser;notify:(message:string)=>void;onRefresh:()=>Promise<void>}){
   const [section,setSection]=useState<'runtime'|'access'|'mail'>('runtime')
-  return <div className="page-stack"><div className="portal-page-tabs" role="tablist" aria-label="系统配置分类">{([['runtime','地图与执行器'],['access','使用模式与客户入口'],['mail','邮件服务器']] as const).map(([key,label])=><button type="button" role="tab" aria-selected={section===key} key={key} className={section===key?'active':''} onClick={()=>setSection(key)}>{label}</button>)}</div>{section==='runtime'?<RuntimeSettingsPage config={config} notify={notify} onRefresh={onRefresh}/>:<PortalSystemSettings key={section} section={section} user={user} notify={notify}/>}</div>
+  return <div className="page-stack system-settings-page"><div className="portal-page-tabs" role="tablist" aria-label="系统配置分类">{([['runtime','地图与执行器'],['access','使用模式与客户入口'],['mail','邮件服务器']] as const).map(([key,label])=><button type="button" role="tab" aria-selected={section===key} key={key} className={section===key?'active':''} onClick={()=>setSection(key)}>{label}</button>)}</div>{section==='runtime'?<RuntimeSettingsPage config={config} notify={notify} onRefresh={onRefresh}/>:<PortalSystemSettings key={section} section={section} user={user} notify={notify}/>}</div>
 }
 
 function RuntimeSettingsPage({config: _config, notify, onRefresh}: {config:Config|null; notify:(message:string)=>void; onRefresh:()=>Promise<void>}) {
@@ -933,30 +975,31 @@ function RuntimeSettingsPage({config: _config, notify, onRefresh}: {config:Confi
   const totalConcurrency=workerProcesses*workerConcurrency
   const totalMapQPS=mapKeys.reduce((sum,key)=>sum+(Number.isFinite(key.qps)?key.qps:0),0)
   return <div className="page-stack settings-page">
-    <section className="page-toolbar"><span className={`status-pill ${settings?.map_api_key_configured?'ok':'warn'}`}>{settings?.map_api_key_configured?`${settings.map_api_keys.length} MAP KEYS READY`:'MAP KEY REQUIRED'}</span></section>
     <form className="settings-grid" onSubmit={save}>
       <section className="panel settings-card map-keys-card">
-        <div className="settings-card-head"><div className="settings-card-icon cyan"><RadioTower/></div><div><span className="kicker">AMAP KEY POOL</span><h2>高德地图密钥池</h2><p>每个 API Key 使用独立令牌桶和 QPS 上限；调度器自动选择当前有额度的 Key。</p></div></div>
+        <div className="settings-card-head"><div className="settings-card-icon cyan"><RadioTower/></div><div><h2>高德地图密钥池</h2><p>每个 Key 独立限流，调度器公平分配请求。</p></div><span className={`status-pill ${settings?.map_api_key_configured?'ok':'warn'}`}>{settings?settings.map_api_key_configured?`${settings.map_api_keys.length} 个已保存`:'尚未配置':'读取中…'}</span></div>
         <div className="map-key-toolbar"><div><strong>{mapKeys.length} 个 Key</strong><span>汇总上限 {Number(totalMapQPS.toFixed(1))} QPS</span></div><button className="button subtle" type="button" disabled={mapKeys.length>=32} onClick={()=>setMapKeys(current=>[...current,mapKeyDraft()])}><Plus/>添加 API Key</button></div>
-        <div className="map-key-list">
+        <div className="map-key-list" role="region" aria-label="地图 API Key 列表" tabIndex={0}>
           {mapKeys.length===0&&<div className="map-key-empty"><KeyRound/><strong>尚未配置地图密钥</strong><span>添加至少一个 Web 服务 API Key 后才能规划道路路线。</span></div>}
           {mapKeys.map((key,index)=><div className="map-key-row" key={key.clientID}>
             <div className="map-key-order"><span>KEY</span><strong>{String(index+1).padStart(2,'0')}</strong></div>
-            <label className="map-key-secret"><span>API Key</span><div className="secret-input"><input required={!key.id} type={key.show?'text':'password'} autoComplete="off" value={key.apiKey} placeholder={key.id?`${key.masked} · 留空保持不变`:'输入 Web 服务 API Key'} onChange={event=>updateMapKey(key.clientID,{apiKey:event.target.value})}/><button type="button" title={key.show?'隐藏密钥':'显示密钥'} onClick={()=>updateMapKey(key.clientID,{show:!key.show})}>{key.show?<EyeOff/>:<Eye/>}</button></div></label>
-            <label className="map-key-qps"><span>独立 QPS</span><div className="number-control"><input required type="number" min="0.1" max="100" step="0.1" value={key.qps} onChange={event=>updateMapKey(key.clientID,{qps:Number(event.target.value)})}/><span>REQ / SEC</span></div></label>
+            <div className="map-key-secret"><label htmlFor={`map-secret-${key.clientID}`}>API Key</label><div className="secret-input"><input id={`map-secret-${key.clientID}`} aria-label={`第 ${index+1} 个 API Key`} required={!key.id} type={key.show?'text':'password'} autoComplete="off" value={key.apiKey} placeholder={key.id?`${key.masked} · 留空保留`:'输入 Web 服务 API Key'} onChange={event=>updateMapKey(key.clientID,{apiKey:event.target.value})}/><button type="button" aria-label={`${key.show?'隐藏':'显示'}第 ${index+1} 个密钥`} title={key.show?'隐藏密钥':'显示密钥'} onClick={()=>updateMapKey(key.clientID,{show:!key.show})}>{key.show?<EyeOff/>:<Eye/>}</button></div></div>
+            <label className="map-key-qps"><span>独立 QPS</span><input aria-label={`第 ${index+1} 个 Key 的 QPS 上限`} required type="number" inputMode="decimal" min="0.1" max="100" step="0.1" value={key.qps} onChange={event=>updateMapKey(key.clientID,{qps:Number(event.target.value)})}/></label>
             <button className="map-key-remove" type="button" title="移除此 Key" aria-label={`移除第 ${index+1} 个 API Key`} onClick={()=>setMapKeys(current=>current.filter(item=>item.clientID!==key.clientID))}><Trash2/></button>
           </div>)}
         </div>
         <div className="settings-footnote"><Database/><span>密钥使用 AES-GCM 加密保存；已保存的密钥只显示尾号，留空不会替换。</span></div>
       </section>
 
-      <section className="panel settings-card">
-        <div className="settings-card-head"><div className="settings-card-icon"><Cpu/></div><div><span className="kicker">EXECUTION CAPACITY</span><h2>Worker 执行器</h2><p>按 Worker 进程数 × 每个 Worker 的线程并发数计算最大并行任务槽位。</p></div></div>
-        <div className="settings-fields two-column">
-          <Field label="Worker 进程数"><input required type="number" min="1" max="16" step="1" value={workerProcesses} onChange={event=>setWorkerProcesses(Number(event.target.value))}/><small>允许 1–16 个 Worker</small></Field>
-          <Field label="每个 Worker 多线程并发"><input required type="number" min="1" max="32" step="1" value={workerConcurrency} onChange={event=>setWorkerConcurrency(Number(event.target.value))}/><small>每个 Worker 允许 1–32 路</small></Field>
+      <section className="panel settings-card worker-settings-card">
+        <div className="settings-card-head"><div className="settings-card-icon"><Cpu/></div><div><h2>Worker 执行器</h2><p>进程数 × 单 Worker 线程并发数 = 最大任务槽位。</p></div></div>
+        <div className="worker-settings-body">
+          <div className="settings-fields two-column">
+            <Field label="Worker 进程数"><input required type="number" min="1" max="16" step="1" value={workerProcesses} onChange={event=>setWorkerProcesses(Number(event.target.value))}/><small>允许 1–16 个 Worker</small></Field>
+            <Field label="单 Worker 并发数"><input required type="number" min="1" max="32" step="1" value={workerConcurrency} onChange={event=>setWorkerConcurrency(Number(event.target.value))}/><small>每个 Worker 允许 1–32 路</small></Field>
+          </div>
+          <div className="capacity-preview" aria-label={`执行容量：${workerProcesses} 个 Worker，每个 ${workerConcurrency} 路，共 ${totalConcurrency} 个任务槽位`}><div><span>进程</span><strong>{workerProcesses}</strong></div><i aria-hidden="true">×</i><div><span>线程</span><strong>{workerConcurrency}</strong></div><i aria-hidden="true">=</i><div className="total"><span>任务槽位</span><strong>{totalConcurrency}</strong></div></div>
         </div>
-        <div className="capacity-preview"><div><span>WORKERS</span><strong>{workerProcesses}</strong></div><i>×</i><div><span>THREADS</span><strong>{workerConcurrency}</strong></div><i>=</i><div className="total"><span>TOTAL SLOTS</span><strong>{totalConcurrency}</strong></div></div>
       </section>
 
       <section className="panel settings-savebar">
@@ -1016,8 +1059,8 @@ function Fact({label, value, hint}: {label:string; value:string; hint?:string}) 
 function MetricLine({label, value}: {label:string; value:string}) { return <div><span>{label}</span><b>{value}</b></div> }
 function Stat({icon, label, value}: {icon:ReactNode; label:string; value:string}) { return <div className="stat"><div className="stat-icon">{icon}</div><div><span>{label}</span><strong>{value}</strong></div></div> }
 function SummaryTile({tone, icon, label, value}: {tone:string; icon:ReactNode; label:string; value:number}) { return <div className={`panel summary-tile ${tone}`}><div>{icon}</div><span>{label}</span><strong>{value}</strong></div> }
-function OverviewKPI({tone, icon, label, value, hint}: {tone:string; icon:ReactNode; label:string; value:string; hint:string}) { return <div className={`panel overview-kpi ${tone}`}><div className="overview-kpi-icon">{icon}</div><div className="overview-kpi-copy"><span>{label}</span><strong>{value}</strong><small>{hint}</small></div></div> }
-function HealthRow({icon, label, detail, live}: {icon:ReactNode; label:string; detail:string; live:boolean}) { return <div className="overview-health-row"><div className="health-icon">{icon}</div><div><strong>{label}</strong><span>{detail}</span></div><i className={live?'live':''}/></div> }
+function OverviewKPI({tone, icon, label, value, hint}: {tone:string; icon:ReactNode; label:string; value:string; hint:string}) { return <div className={`panel overview-kpi ${tone}`}><div className="overview-kpi-icon">{icon}</div><div className="overview-kpi-copy"><span>{label}</span><strong>{value}</strong><small title={hint}>{hint}</small></div></div> }
+function HealthRow({icon, label, detail, live}: {icon:ReactNode; label:string; detail:string; live:boolean}) { return <div className="overview-health-row"><div className="health-icon">{icon}</div><div className="overview-health-copy"><strong>{label}</strong><span>{detail}</span></div><i className={live?'live':''} role="img" aria-label={live?'服务在线':'服务未就绪'}/></div> }
 function Empty({text}: {text:string}) { return <div className="empty"><Layers3/><span>{text}</span></div> }
 function Modal({title, onClose, children, wide=false, className=''}: {title:string; onClose:()=>void; children:ReactNode; wide?:boolean; className?:string}) { return <div className="modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) onClose() }}><section className={`modal ${wide ? 'modal-wide' : ''} ${className}`.trim()}><div className="modal-head"><div><span className="kicker">CONTROL DIALOG</span><h2>{title}</h2></div><button className="icon-button" aria-label="关闭" title="关闭" onClick={onClose}><X size={17}/></button></div>{children}</section></div> }
 
