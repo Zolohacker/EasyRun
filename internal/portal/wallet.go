@@ -137,16 +137,6 @@ func (s *Service) depositAddress(w http.ResponseWriter, r *http.Request) {
 	}
 	jsonReply(w, 201, a)
 }
-func (s *Service) scanNow(w http.ResponseWriter, r *http.Request) {
-	if !requireAdmin(w, r) {
-		return
-	}
-	select {
-	case s.scanRequested <- struct{}{}:
-	default:
-	}
-	jsonReply(w, 202, map[string]string{"status": "queued"})
-}
 func (s *Service) collectNow(w http.ResponseWriter, r *http.Request) {
 	if !requireSuper(w, r) {
 		return
@@ -208,12 +198,11 @@ func (s *Service) listSweeps(w http.ResponseWriter, r *http.Request) {
 	jsonReply(w, 200, out)
 }
 
-// Run owns all blockchain I/O. It starts disabled until the administrator
-// explicitly configures a network, token contract, seed and enabled=true.
+// Run processes explicitly requested deposit checks and collection work.
+// Timer ticks never discover deposits without a persisted user request.
 func (s *Service) Run(ctx context.Context) {
 	ticker := time.NewTicker(15 * time.Second)
 	defer ticker.Stop()
-	lastScan := time.Time{}
 	lastMaintenance := time.Time{}
 	for {
 		select {
@@ -221,7 +210,6 @@ func (s *Service) Run(ctx context.Context) {
 			return
 		case <-ticker.C:
 		case <-s.scanRequested:
-			lastScan = time.Time{}
 		case <-s.collectRequested:
 			s.collect(ctx)
 		}
@@ -236,11 +224,8 @@ func (s *Service) Run(ctx context.Context) {
 		if !cfg.Wallet.Enabled {
 			continue
 		}
-		if time.Since(lastScan) >= time.Minute {
-			if e = s.scanDeposits(ctx, cfg.Wallet); e != nil {
-				slog.Warn("scan wallet deposits", "error", e)
-			}
-			lastScan = time.Now()
+		if e = s.processDepositScans(ctx, cfg.Wallet); e != nil && ctx.Err() == nil {
+			slog.Warn("process requested deposit checks", "error", e)
 		}
 		s.reconcileSweeps(ctx, cfg.Wallet)
 		if cfg.Wallet.AutoCollect && s.claimCollectionTime(ctx, cfg.Wallet) {
@@ -309,57 +294,27 @@ func (s *Service) locked(ctx context.Context, id int64, fn func() error) error {
 	defer conn.Exec(context.WithoutCancel(ctx), `SELECT pg_advisory_unlock($1)`, id)
 	return fn()
 }
-func (s *Service) scanDeposits(ctx context.Context, w WalletConfig) error {
-	return s.locked(ctx, 42831002, func() error {
-		rows, e := s.db.Query(ctx, `SELECT user_id,address,derivation_index,created_at,scanned_at,full_scanned_at FROM portal_wallet_addresses ORDER BY derivation_index`)
-		if e != nil {
-			return e
+func (s *Service) scanWalletAddress(ctx context.Context, w WalletConfig, userID string) error {
+	a := DepositAddress{UserID: userID}
+	var scannedAt, fullScannedAt *time.Time
+	err := s.db.QueryRow(ctx, `SELECT address,derivation_index,created_at,scanned_at,full_scanned_at FROM portal_wallet_addresses WHERE user_id=$1`, userID).Scan(&a.Address, &a.Index, &a.CreatedAt, &scannedAt, &fullScannedAt)
+	if err != nil {
+		return err
+	}
+	since := a.CreatedAt
+	fullScan := fullScannedAt == nil || time.Since(*fullScannedAt) >= 24*time.Hour
+	if scannedAt != nil && !fullScan {
+		since = scannedAt.Add(-15 * time.Minute)
+		if since.Before(a.CreatedAt) {
+			since = a.CreatedAt
 		}
-		type addr struct {
-			DepositAddress
-			Scanned     *time.Time
-			FullScanned *time.Time
-		}
-		list := []addr{}
-		for rows.Next() {
-			var a addr
-			if e = rows.Scan(&a.UserID, &a.Address, &a.Index, &a.CreatedAt, &a.Scanned, &a.FullScanned); e != nil {
-				rows.Close()
-				return e
-			}
-			list = append(list, a)
-		}
-		e = rows.Err()
-		rows.Close()
-		if e != nil {
-			return e
-		}
-		var addressErrors []error
-		for _, a := range list {
-			since := a.CreatedAt
-			fullScan := a.FullScanned == nil || time.Since(*a.FullScanned) >= 24*time.Hour
-			if a.Scanned != nil && !fullScan {
-				since = a.Scanned.Add(-15 * time.Minute)
-				if since.Before(a.CreatedAt) {
-					since = a.CreatedAt
-				}
-			}
-			scanned := time.Now()
-			if e = s.scanAddress(ctx, w, a.DepositAddress, since); e != nil {
-				if ctx.Err() != nil {
-					return ctx.Err()
-				}
-				// An unindexed or temporarily unavailable address must not block
-				// deposits belonging to all subsequent customers.
-				addressErrors = append(addressErrors, fmt.Errorf("wallet user %s: %w", a.UserID, e))
-				continue
-			}
-			if _, e = s.db.Exec(ctx, `UPDATE portal_wallet_addresses SET scanned_at=$2,full_scanned_at=CASE WHEN $3 THEN $2 ELSE full_scanned_at END WHERE user_id=$1`, a.UserID, scanned, fullScan); e != nil {
-				return e
-			}
-		}
-		return errors.Join(addressErrors...)
-	})
+	}
+	scanned := time.Now()
+	if err = s.scanAddress(ctx, w, a, since); err != nil {
+		return err // Leave the checkpoint unchanged so the next manual check can catch up.
+	}
+	_, err = s.db.Exec(ctx, `UPDATE portal_wallet_addresses SET scanned_at=$2,full_scanned_at=CASE WHEN $3 THEN $2 ELSE full_scanned_at END WHERE user_id=$1`, userID, scanned, fullScan)
+	return err
 }
 func (s *Service) scanAddress(ctx context.Context, w WalletConfig, a DepositAddress, since time.Time) error {
 	params := url.Values{"only_confirmed": {"true"}, "only_to": {"true"}, "contract_address": {w.Contract}, "limit": {"200"}, "order_by": {"block_timestamp,asc"}, "min_timestamp": {strconv.FormatInt(since.UnixMilli(), 10)}}

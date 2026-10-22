@@ -584,8 +584,11 @@ func TestWalletHTTPIntegration(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	if e = s.scanDeposits(ctx, cfg); e == nil {
+	if e = s.scanWalletAddress(ctx, cfg, "bad"); e == nil {
 		t.Fatal("missing address failure")
+	}
+	if e = s.scanWalletAddress(ctx, cfg, "u"); e != nil {
+		t.Fatal(e)
 	}
 	var goodScanned, badScanned bool
 	if e = s.db.QueryRow(ctx, `SELECT scanned_at IS NOT NULL FROM portal_wallet_addresses WHERE user_id='u'`).Scan(&goodScanned); e != nil {

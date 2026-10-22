@@ -202,6 +202,8 @@ CREATE SEQUENCE IF NOT EXISTS portal_wallet_index_seq MINVALUE 0 START 0 MAXVALU
 CREATE TABLE IF NOT EXISTS portal_wallet_addresses(user_id text PRIMARY KEY REFERENCES portal_users(id),address text NOT NULL UNIQUE,derivation_index bigint NOT NULL UNIQUE,created_at timestamptz NOT NULL DEFAULT now(),scanned_at timestamptz);
 ALTER TABLE portal_wallet_addresses ADD COLUMN IF NOT EXISTS full_scanned_at timestamptz;
 CREATE TABLE IF NOT EXISTS portal_deposits(tx_id text NOT NULL,event_index integer NOT NULL,user_id text NOT NULL REFERENCES portal_users(id),amount_micro bigint NOT NULL CHECK(amount_micro>0),address text NOT NULL,created_at timestamptz NOT NULL DEFAULT now(),PRIMARY KEY(tx_id,event_index));
+CREATE INDEX IF NOT EXISTS portal_deposits_user_time ON portal_deposits(user_id,created_at);
+CREATE TABLE IF NOT EXISTS portal_deposit_scan_requests(user_id text PRIMARY KEY REFERENCES portal_users(id),state text NOT NULL CHECK(state IN('queued','running','succeeded','failed')),requested_at timestamptz NOT NULL,started_at timestamptz,finished_at timestamptz,message text NOT NULL DEFAULT '',credited_micro bigint NOT NULL DEFAULT 0,deposit_count integer NOT NULL DEFAULT 0);
 CREATE TABLE IF NOT EXISTS portal_sweeps(id text PRIMARY KEY,address text NOT NULL,amount_micro bigint NOT NULL DEFAULT 0,state text NOT NULL,tx_id text NOT NULL DEFAULT '',signed_tx jsonb,message text NOT NULL DEFAULT '',created_at timestamptz NOT NULL DEFAULT now(),updated_at timestamptz NOT NULL DEFAULT now());
 ALTER TABLE portal_sweeps ADD COLUMN IF NOT EXISTS destination text NOT NULL DEFAULT '';
 CREATE UNIQUE INDEX IF NOT EXISTS portal_one_active_sweep ON portal_sweeps(address) WHERE state IN('queued','renting','signed','broadcast','needs_review');

@@ -1,5 +1,6 @@
 import SearchSelect from './SearchSelect'
 import DepositQRCode from './DepositQRCode'
+import DepositScanPanel from './DepositScanPanel'
 import {ListViewport,usePagination} from './Pagination'
 import {useCallback,useEffect,useState,type FormEvent,type ReactNode} from 'react'
 import {Activity,ArrowUpRight,Check,Copy,CreditCard,ImagePlus,ShieldCheck,Wallet} from 'lucide-react'
@@ -36,8 +37,9 @@ export function WalletPage({accounts,plans,jobs,notify}:{accounts:Account[];plan
             if(!navigator.clipboard){notify('请长按收款地址进行复制');return}
             void navigator.clipboard.writeText(data.deposit_address).then(()=>notify('地址已复制')).catch(()=>notify('复制失败，请长按收款地址手动复制'))
           }}><Copy/>复制收款地址</button>
+          <DepositScanPanel onRefresh={load}/>
         </>:<div className="deposit-pending"><Wallet/><p>先生成本账号的专属收款地址，即可显示充值二维码。</p><button className="button primary" disabled={busy} onClick={()=>void act(()=>portalRequest('wallet/address',{}),'专属地址已分配')}>{busy?'正在生成…':'生成专属收款二维码'}</button></div>}
-        <p className="portal-hint">只接收所选网络的 USDT（TRC20）。链上固化后自动入账，请勿使用其他网络充值。</p>
+        <p className="portal-hint">只接收所选网络的 USDT（TRC20）。转账固化后点击「检查充值」，核实成功即入账；请勿使用其他网络充值。</p>
       </Panel>}
       {data.pricing.recharge_code_enabled&&<Panel kicker="REDEEM A CODE" title="充值码兑换"><form className="form-stack" onSubmit={e=>{e.preventDefault();void act(async()=>{await portalRequest('redeem',{code});setCode('')},'充值码兑换成功')}}><Field label="充值码"><input required value={code} onChange={e=>setCode(e.target.value)} placeholder="ER-…" autoComplete="off"/></Field><button className="button primary" disabled={busy}><CreditCard/>兑换到余额</button></form>{shopURL&&<div className="portal-shop-callout"><div><strong>还没有充值码？</strong><p>前往发卡网购买，完成后返回此处兑换。</p></div><a className="button subtle" href={shopURL} target="_blank" rel="noopener noreferrer">购买充值码<ArrowUpRight/></a></div>}</Panel>}
     </div>}

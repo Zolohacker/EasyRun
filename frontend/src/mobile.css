@@ -17,6 +17,14 @@
 .deposit-pending { display: grid; justify-items: center; gap: 14px; padding: 18px 0; text-align: center; }
 .deposit-pending > svg { width: 36px; height: 36px; color: var(--cyan); }
 .deposit-pending p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.8; }
+.deposit-scan-panel { display: grid; gap: 12px; min-width: 0; padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: #062016; }
+.deposit-scan-panel strong { font-size: 15px; line-height: 1.6; }
+.deposit-scan-panel p { margin: 5px 0 0; font-size: 13px; line-height: 1.8; color: var(--muted); overflow-wrap: anywhere; }
+.deposit-scan-panel .button { width: 100%; min-height: 44px; height: auto; padding: 10px; white-space: normal; }
+.deposit-scan-panel small { color: var(--muted); font-size: 12px; }
+.deposit-scan-panel .failed, .deposit-scan-panel .portal-error { color: var(--amber); }
+.deposit-scan-panel .succeeded, .deposit-scan-credit { color: var(--green); }
+.deposit-scan-credit { font-size: 14px; line-height: 1.7; }
 
 @media (max-width: 760px) {
   html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
