@@ -231,6 +231,7 @@ func TestRechargeMethodAvailability(t *testing.T) {
 		t.Fatal("recharge code fixture failed", err)
 	}
 	cfg := Defaults()
+	cfg.Wallet.Enabled = false
 	cfg.Pricing.RechargeCodeEnabled = false
 	requestTest(t, admin, server.URL, "PUT", "/api/v1/portal/settings", map[string]any{"section": "recharge", "settings": cfg, "password": password}, 200)
 	stale := Defaults() // Another open page still thinks redemption is enabled.

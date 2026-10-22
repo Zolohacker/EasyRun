@@ -1,5 +1,6 @@
 import SearchSelect from './SearchSelect'
 import WalletNodeSettings from './WalletNodeSettings'
+import WalletBackupPanel from './WalletBackupPanel'
 import {ListViewport,usePagination} from './Pagination'
 import {useCallback,useEffect,useState,type FormEvent} from 'react'
 import {ArrowUpRight,CreditCard,Download,Mail,RefreshCw,ShieldCheck,UsersRound,Wallet} from 'lucide-react'
@@ -64,17 +65,12 @@ function PricingAdmin({user,notify}:AdminProps){
 
 function WalletAdmin({user,notify}:AdminProps){
   const {settings:cfg,setSettings,password,setPassword,busy,superadmin,action,save,load}=useAdminSettings({user,notify})
-  const [seed,setSeed]=useState('')
-  const createSeed=()=>action(async()=>{
-    const result=await portalRequest<{seed_hex:string}>('wallet/seed',{password})
-    setSeed(result.seed_hex)
-    setSettings(current=>current?{...current,wallet:{...current.wallet,seed_hex:'',seed_configured:true}}:current)
-  },'钱包已创建，请立即离线备份')
+  const createSeed=()=>action(()=>portalRequest('wallet/seed',{password}),'钱包已创建，请导出助记词离线备份',true)
   if(!superadmin)return <SuperadminNotice/>
   if(!cfg)return <SettingsLoading onRetry={()=>void load()}/>
   return <form className="page-stack" onSubmit={e=>void save(e,'recharge')}>
-    <Panel kicker="RECHARGE METHODS" title="客户可用充值方式"><Toggle label="启用 USDT TRC20 自助充值" checked={cfg.wallet.enabled} onChange={v=>setSettings({...cfg,wallet:{...cfg.wallet,enabled:v}})}/><Toggle label="开启充值码兑换" checked={cfg.pricing.recharge_code_enabled} onChange={value=>setSettings({...cfg,pricing:{...cfg.pricing,recharge_code_enabled:value}})}/><p className="portal-hint">两种充值方式独立开启；启用 USDT 前请先完成下方钱包配置。未开启的方式不会在客户端显示，也拒绝对应充值操作。关闭充值码后，发卡网购买入口一并隐藏。</p></Panel>
-    <Panel kicker="HD WALLET · TRC20" title="自助充值钱包"><WalletNodeSettings wallet={cfg.wallet} onChange={wallet=>setSettings({...cfg,wallet})}/><div className="portal-wallet-security"><ShieldCheck/><div><strong>{cfg.wallet.seed_configured?'HD 钱包已建立':'先创建 HD 钱包并离线备份'}</strong><p>派生路径 m/44'/195'/0'/0/index，每位客户独立地址，地址一经分配不更换网络。seed 加密保存且禁止覆盖。</p></div><button className="button subtle" type="button" disabled={busy||cfg.wallet.seed_configured||!password} onClick={()=>void createSeed()}>创建钱包</button></div>{!cfg.wallet.seed_configured&&<Field label="或导入现有 HD seed（十六进制，仅初始化一次）"><input type="password" autoComplete="new-password" value={cfg.wallet.seed_hex||''} onChange={e=>setSettings({...cfg,wallet:{...cfg.wallet,seed_hex:e.target.value}})}/></Field>}{seed&&<div className="portal-secret"><strong>仅本次展示，请立即离线保存。不要截图或发送给他人。</strong><code>{seed}</code><div className="action-row"><button type="button" className="button subtle" onClick={()=>downloadText(seed,'easyrun-hd-seed-backup.txt')}><Download/>下载离线备份</button><button type="button" className="button subtle" onClick={()=>setSeed('')}>我已备份，隐藏</button></div></div>}<p className="portal-hint">仅固化成功且合约、收款地址、Transfer 事件匹配的充值入账。测试网不接收真实 USDT。seed 和 ACCOUNT_MASTER_KEY 需要分别离线备份。</p></Panel>
+    <Panel kicker="RECHARGE METHODS" title="客户可用充值方式"><div className="portal-toggle-grid"><Toggle label="启用 USDT TRC20 自助充值" checked={cfg.wallet.enabled} onChange={v=>setSettings({...cfg,wallet:{...cfg.wallet,enabled:v}})}/><Toggle label="开启充值码兑换" checked={cfg.pricing.recharge_code_enabled} onChange={value=>setSettings({...cfg,pricing:{...cfg.pricing,recharge_code_enabled:value}})}/></div><p className="portal-hint">两种充值方式独立开启；启用 USDT 前请先完成下方钱包配置。未开启的方式不会在客户端显示，也拒绝对应充值操作。关闭充值码后，发卡网购买入口一并隐藏。</p></Panel>
+    <Panel kicker="HD WALLET · TRC20" title="自助充值钱包"><WalletNodeSettings wallet={cfg.wallet} onChange={wallet=>setSettings({...cfg,wallet})}/><WalletBackupPanel wallet={cfg.wallet} creating={busy} canCreate={Boolean(password)} onCreate={()=>void createSeed()}/>{!cfg.wallet.seed_configured&&<Field label="或导入现有 HD seed（十六进制，仅初始化一次）"><input type="password" autoComplete="new-password" value={cfg.wallet.seed_hex||''} onChange={e=>setSettings({...cfg,wallet:{...cfg.wallet,seed_hex:e.target.value}})}/></Field>}<p className="portal-hint">仅固化成功且合约、收款地址、Transfer 事件匹配的充值入账。助记词 / 旧版 seed、数据库和 ACCOUNT_MASTER_KEY 请分别离线备份；自动归集默认关闭。</p></Panel>
     <SettingsSave password={password} setPassword={setPassword} busy={busy} label="保存充值方式与钱包配置"/>
   </form>
 }

@@ -2,8 +2,6 @@ package portal
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -33,27 +31,52 @@ func (s *Service) generateSeed(w http.ResponseWriter, r *http.Request) {
 		fail(w, 403, "请填写当前超管密码")
 		return
 	}
-	c, e := s.Settings(r.Context(), false)
+	tx, e := s.db.Begin(r.Context())
 	if e != nil {
 		s.dbError(w, e)
 		return
 	}
-	if c.Wallet.SeedConfigured {
-		fail(w, 409, "HD seed 已存在；请使用先前的离线备份")
-		return
-	}
-	seed := make([]byte, 64)
-	if _, e = rand.Read(seed); e != nil {
+	defer tx.Rollback(r.Context())
+	var raw []byte
+	if e = tx.QueryRow(r.Context(), `SELECT secrets FROM portal_settings WHERE id=1 FOR UPDATE`).Scan(&raw); e != nil {
 		s.dbError(w, e)
 		return
 	}
-	c.Wallet.SeedHex = hex.EncodeToString(seed)
-	if e = s.saveSettings(r, c, "wallet"); e != nil {
-		fail(w, 400, e.Error())
+	sealed := map[string][]byte{}
+	if e = json.Unmarshal(raw, &sealed); e != nil {
+		s.dbError(w, e)
+		return
+	}
+	if len(sealed["seed"]) > 0 {
+		fail(w, 409, "收款钱包已存在，请使用导出备份功能")
+		return
+	}
+	var allocated bool
+	if e = tx.QueryRow(r.Context(), `SELECT EXISTS(SELECT 1 FROM portal_wallet_addresses)`).Scan(&allocated); e != nil {
+		s.dbError(w, e)
+		return
+	}
+	if allocated {
+		fail(w, 409, "已有充值地址，请先恢复原有钱包备份，不生成新钱包")
+		return
+	}
+	if e = s.sealNewMnemonicWallet(sealed); e != nil {
+		s.dbError(w, e)
+		return
+	}
+	raw, e = json.Marshal(sealed)
+	if e == nil {
+		_, e = tx.Exec(r.Context(), `UPDATE portal_settings SET secrets=$1,updated_at=now() WHERE id=1`, raw)
+	}
+	if e == nil {
+		e = tx.Commit(r.Context())
+	}
+	if e != nil {
+		s.dbError(w, e)
 		return
 	}
 	s.audit(r.Context(), "wallet.seed-create", "HD wallet")
-	jsonReply(w, 201, map[string]string{"seed_hex": c.Wallet.SeedHex, "warning": "此 seed 仅展示一次。请离线备份并同时备份 ACCOUNT_MASTER_KEY；勿向他人发送。"})
+	jsonReply(w, 201, map[string]bool{"created": true, "mnemonic_configured": true})
 }
 func (s *Service) depositAddress(w http.ResponseWriter, r *http.Request) {
 	cfg, e := s.Settings(r.Context(), true)

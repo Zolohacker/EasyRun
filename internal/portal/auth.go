@@ -3,6 +3,7 @@ package portal
 import (
 	"context"
 	"crypto/rand"
+	"encoding/json"
 	"errors"
 	"math/big"
 	"net"
@@ -154,6 +155,7 @@ func (s *Service) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("PUT /api/v1/public/face/{id}", s.publicFaceUpload)
 	mux.HandleFunc("POST /api/v1/portal/wallet/address", s.depositAddress)
 	mux.HandleFunc("POST /api/v1/portal/wallet/seed", s.generateSeed)
+	mux.HandleFunc("POST /api/v1/portal/wallet/export", s.exportWalletBackup)
 	mux.HandleFunc("POST /api/v1/portal/wallet/scan", s.scanNow)
 	mux.HandleFunc("POST /api/v1/portal/wallet/probe", s.probeWalletNodes)
 	mux.HandleFunc("GET /api/v1/portal/wallet/sweeps", s.listSweeps)
@@ -246,12 +248,41 @@ func (s *Service) setup(w http.ResponseWriter, r *http.Request) {
 		s.dbError(w, e)
 		return
 	}
-	cfg := Defaults()
+	var configRaw, secretsRaw []byte
+	if e = tx.QueryRow(r.Context(), `SELECT config,secrets FROM portal_settings WHERE id=1 FOR UPDATE`).Scan(&configRaw, &secretsRaw); e != nil {
+		s.dbError(w, e)
+		return
+	}
+	cfg, e := decodeSettingsConfig(configRaw)
+	if e != nil {
+		s.dbError(w, e)
+		return
+	}
+	sealed := map[string][]byte{}
+	if e = json.Unmarshal(secretsRaw, &sealed); e != nil {
+		s.dbError(w, e)
+		return
+	}
+	if len(sealed["seed"]) == 0 {
+		cfg.Wallet = Defaults().Wallet
+		delete(sealed, "node")
+		delete(sealed, "rpc_url")
+		delete(sealed, "rpc_key")
+		if e = s.sealNewMnemonicWallet(sealed); e != nil {
+			s.dbError(w, e)
+			return
+		}
+	}
 	cfg.Mode = in.Mode
 	cfg.FrontendEnabled = in.Mode == "commercial" && in.Frontend
 	cfg.RegistrationEnabled = cfg.FrontendEnabled
 	raw, _ := jsonMarshal(cfg)
-	_, e = tx.Exec(r.Context(), `UPDATE portal_settings SET config=$1 WHERE id=1`, raw)
+	secretsRaw, e = jsonMarshal(sealed)
+	if e != nil {
+		s.dbError(w, e)
+		return
+	}
+	_, e = tx.Exec(r.Context(), `UPDATE portal_settings SET config=$1,secrets=$2,updated_at=now() WHERE id=1`, raw, secretsRaw)
 	if e == nil {
 		_, e = tx.Exec(r.Context(), `UPDATE runner_accounts SET owner_user_id=$1 WHERE owner_user_id=''`, id)
 	}

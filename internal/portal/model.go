@@ -49,6 +49,7 @@ type WalletConfig struct {
 	RPCAPIHeader         string `json:"rpc_api_header"`
 	SeedHex              string `json:"seed_hex,omitempty"`
 	SeedConfigured       bool   `json:"seed_configured"`
+	MnemonicConfigured   bool   `json:"mnemonic_configured"`
 	FeeeAPIKey           string `json:"feee_api_key,omitempty"`
 	FeeeAPIKeyConfigured bool   `json:"feee_api_key_configured"`
 	CollectionAddress    string `json:"collection_address"`
@@ -70,7 +71,7 @@ type Settings struct {
 }
 
 func Defaults() Settings {
-	return Settings{Mode: "personal", Mail: MailConfig{Protocol: "starttls", Port: 587}, Pricing: Pricing{RechargeCodeEnabled: true}, Wallet: WalletConfig{Network: "shasta", NodeURL: "https://api.shasta.trongrid.io", NodeProvider: "trongrid", RPCAPIHeader: "TRON-PRO-API-KEY", CollectCron: "0 3 * * *", Timezone: "Asia/Shanghai", MinCollectMicro: 5 * MicroUSDT, FeeLimitSun: 30_000_000, EnergyPriceSun: 100}}
+	return Settings{Mode: "personal", Mail: MailConfig{Protocol: "starttls", Port: 587}, Pricing: Pricing{RechargeCodeEnabled: true}, Wallet: WalletConfig{Enabled: true, Network: "mainnet", NodeURL: TokenPocketNodeURL, NodeProvider: "tokenpocket", Contract: MainnetUSDT, CollectCron: "0 3 * * *", Timezone: "Asia/Shanghai", MinCollectMicro: 5 * MicroUSDT, FeeLimitSun: 30_000_000, EnergyPriceSun: 100}}
 }
 
 type LedgerEntry struct {

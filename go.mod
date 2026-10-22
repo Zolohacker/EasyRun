@@ -3,6 +3,7 @@ module github.com/Zolohacker/EasyRun
 go 1.23.0
 
 require (
+	github.com/cosmos/go-bip39 v1.0.0
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.0
 	github.com/jackc/pgx/v5 v5.7.6
 	github.com/robfig/cron/v3 v3.0.1

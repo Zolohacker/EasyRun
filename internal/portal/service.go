@@ -59,6 +59,38 @@ func token() (string, error) {
 	return base64.RawURLEncoding.EncodeToString(b), nil
 }
 func digest(s string) string { d := sha256.Sum256([]byte(s)); return hex.EncodeToString(d[:]) }
+
+func decodeSettingsConfig(raw []byte) (Settings, error) {
+	c := Defaults()
+	if err := json.Unmarshal(raw, &c); err != nil {
+		return c, err
+	}
+	// Missing provider predates the selector. Those deployments used TronGrid,
+	// including testnet wallets: upgrading must not silently route them to mainnet.
+	var fields struct {
+		Wallet map[string]json.RawMessage `json:"wallet"`
+	}
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return c, err
+	}
+	if _, exists := fields.Wallet["node_provider"]; !exists {
+		c.Wallet.NodeProvider = "trongrid"
+	}
+	if _, exists := fields.Wallet["enabled"]; !exists {
+		c.Wallet.Enabled = false
+	}
+	if _, exists := fields.Wallet["network"]; !exists {
+		c.Wallet.Network = "shasta"
+	}
+	if _, exists := fields.Wallet["node_url"]; !exists {
+		c.Wallet.NodeURL = "https://api.shasta.trongrid.io"
+	}
+	if _, exists := fields.Wallet["contract"]; !exists {
+		c.Wallet.Contract = ""
+	}
+	return c, nil
+}
+
 func (s *Service) Settings(ctx context.Context, secrets bool) (Settings, error) {
 	var raw, encrypted []byte
 	c := Defaults()
@@ -66,7 +98,8 @@ func (s *Service) Settings(ctx context.Context, secrets bool) (Settings, error) 
 	if e != nil {
 		return c, e
 	}
-	if e = json.Unmarshal(raw, &c); e != nil {
+	c, e = decodeSettingsConfig(raw)
+	if e != nil {
 		return c, e
 	}
 	var sealed map[string][]byte
@@ -75,6 +108,7 @@ func (s *Service) Settings(ctx context.Context, secrets bool) (Settings, error) 
 	}
 	c.Mail.PasswordConfigured = len(sealed["mail"]) > 0
 	c.Wallet.SeedConfigured = len(sealed["seed"]) > 0
+	c.Wallet.MnemonicConfigured = len(sealed["mnemonic"]) > 0
 	c.Wallet.NodeAPIKeyConfigured = len(sealed["node"]) > 0
 	c.Wallet.RPCURLConfigured = len(sealed["rpc_url"]) > 0
 	c.Wallet.RPCAPIKeyConfigured = len(sealed["rpc_key"]) > 0

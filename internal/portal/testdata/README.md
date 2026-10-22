@@ -1,0 +1,1 @@
+BIP39 public test vectors are selected from https://github.com/trezor/python-mnemonic/blob/master/vectors.json (MIT, see BIP39-VECTORS-LICENSE). The reference vectors use the public passphrase TREZOR. These fixtures are public and must never secure funds.

@@ -11,6 +11,8 @@ import (
 	"time"
 )
 
+const TokenPocketNodeURL = "https://trx.mytokenpocket.vip"
+
 // TronGrid's V1 indexer is not part of the FullNode HTTP API. Keep discovery
 // and solidified receipts on the indexer service, even with a separate RPC.
 func validateNodeProvider(w *WalletConfig) error {
@@ -23,6 +25,12 @@ func validateNodeProvider(w *WalletConfig) error {
 		return errors.New("节点 API Key 格式不正确")
 	}
 	switch w.NodeProvider {
+	case "tokenpocket":
+		if w.Network != "mainnet" {
+			return errors.New("TokenPocket 节点仅适用于 TRON 主网；测试网请选择其他服务商")
+		}
+		w.RPCURL, w.RPCAPIKey, w.RPCURLHost, w.RPCAPIHeader = "", "", "", ""
+		return nil
 	case "trongrid":
 		w.RPCURL, w.RPCAPIKey, w.RPCURLHost, w.RPCAPIHeader = "", "", "", ""
 		return nil
@@ -82,6 +90,11 @@ func nodeEndpoint(w WalletConfig, path string) (base, key, header string, err er
 		return "", "", "", errors.New("不支持的 TRON RPC 路径")
 	}
 	switch w.NodeProvider {
+	case "tokenpocket":
+		if w.Network != "mainnet" {
+			return "", "", "", errors.New("TokenPocket 节点仅适用于 TRON 主网")
+		}
+		return TokenPocketNodeURL, "", "", nil
 	case "", "trongrid":
 		return strings.TrimRight(w.NodeURL, "/"), w.NodeAPIKey, "TRON-PRO-API-KEY", nil
 	case "nownodes", "quicknode", "getblock", "custom":

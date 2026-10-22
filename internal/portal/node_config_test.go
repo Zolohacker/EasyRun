@@ -15,6 +15,7 @@ import (
 func TestNodeProviderValidation(t *testing.T) {
 	for _, tc := range []struct{ provider, network, endpoint, header string }{
 		{"", "shasta", "", ""},
+		{"tokenpocket", "mainnet", "", ""},
 		{"trongrid", "mainnet", "", ""},
 		{"nownodes", "mainnet", "https://trx.nownodes.io/", "api-key"},
 		{"quicknode", "mainnet", "https://example.tron-mainnet.quiknode.pro/fixture-token/", ""},
@@ -34,6 +35,8 @@ func TestNodeProviderValidation(t *testing.T) {
 	}
 	for _, tc := range []struct{ provider, network, endpoint, header string }{
 		{"unknown", "mainnet", "", ""},
+		{"tokenpocket", "shasta", "", ""},
+		{"tokenpocket", "nile", "", ""},
 		{"nownodes", "nile", "https://trx.nownodes.io", ""},
 		{"quicknode", "shasta", "https://example.quiknode.pro/token", ""},
 		{"getblock", "shasta", "https://go.getblock.io/token", ""},
@@ -142,6 +145,7 @@ func TestWalletNodeSettingsIntegration(t *testing.T) {
 	s, _ := testService(t)
 	r := httptest.NewRequest("PUT", "http://easyrun.example.test/settings", nil)
 	cfg := Defaults()
+	cfg.Wallet.Enabled = false // This test intentionally saves node config before setup.
 	cfg.Wallet.NodeProvider = "custom"
 	cfg.Wallet.NodeAPIKey = "fixture-indexer-key"
 	cfg.Wallet.RPCURL = "https://rpc.example.test/private-endpoint-token"

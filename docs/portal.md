@@ -20,6 +20,8 @@ EasyRun 分为管理后台和可选客户前台。数据库升级保留现有账
 
 没有预置超管密码。首次访问直接设置超级管理员邮箱、密码及使用模式，无需额外令牌；本机、Docker、反向代理和远程部署使用相同流程。初始化通过数据库锁保证只执行一次；完成后初始化接口关闭，旧数据不会被清空。HTTPS 反向代理部署设置 `COOKIE_SECURE=true`。
 
+**全新部署初始化时**，同时创建标准 24 词英文 BIP39 收款钱包，并默认开启主网 USDT TRC20 充值，使用 TokenPocket 免 Key 节点。钱包材料与超管设置在同一数据库事务中提交，不需要再手动创建钱包。初始化页面明确提示这些默认行为；请随后进入「计费管理 → 充值方式与钱包」导出助记词并离线备份。自动归集保持关闭，不会因初始化而租赁能量或发起转账。
+
 ## 权限与隔离
 
 - 超级管理员：站点、邮件、钱包密钥、其他管理员及客户管理。
@@ -73,7 +75,7 @@ TLS 连接校验服务器证书；没有跳过证书校验的开关。IMAP、POP
 
 在「计费管理 → 充值方式与钱包」分别控制 **USDT TRC20 自助充值** 和 **充值码兑换**。客户只显示已开启的充值方式；两项都关闭时不展示充值面板。关闭充值码时也隐藏发卡网入口，且服务端拒绝兑换请求，不会消耗已有充值码。重新开启后，未使用且未过期的码仍可兑换。
 
-升级保留原有行为：USDT 充值默认关闭，充值码兑换默认开启。各开关持久化到数据库；价格页保存不会覆盖充值方式开关。
+全新初始化默认开启 USDT 充值和充值码兑换。**升级已有部署保持其原有开关、网络和钱包材料**；仅缺失旧充值开关时按旧版关闭处理。各开关持久化到数据库；价格页保存不会覆盖充值方式开关。
 
 ### 充值码
 
@@ -83,16 +85,32 @@ TLS 连接校验服务器证书；没有跳过证书校验的开关。IMAP、POP
 
 ## USDT TRC20 自助充值
 
-钱包默认关闭、默认指向 **Shasta 测试网**。测试网地址不接收真实 USDT；切换主网后合约固定为官方 USDT 合约 `TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t`。
+全新部署初始化后，钱包默认开启、默认使用 **TRON 主网**，RPC 与索引默认地址为 `https://trx.mytokenpocket.vip`，不需要填写 API Key。主网合约固定为 USDT 合约 `TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t`。测试网需另选 Shasta / Nile、对应节点及测试代币合约；不要把主网节点混入测试网配置。
 
-1. 选择网络、RPC 服务商、交易索引与确认服务及对应代币合约；主网合约固定。
-2. 输入超管密码，创建 HD 钱包并立即保存一次性展示的 seed；也可导入 32–64 字节十六进制 seed。
-3. 保存配置后启用充值，客户按需分配自己的专属收款地址。
+1. 完成首次初始化，系统自动创建收款钱包并开启充值；旧版已初始化但尚无钱包的部署，仍可在后台输入超管密码后创建钱包，也可首次导入已有原始 seed。
+2. 导出并离线备份助记词；如需修改服务商或关闭充值，在后台保存对应配置。
+3. 客户按需申请自己的专属收款地址，无需配置节点、API Key 或助记词。
 4. 后台每分钟扫描固化交易；核对合约、收款地址、交易回执与 Transfer 事件后入账。每个 `(txID, eventIndex)` 仅入账一次。
 
 HD 派生路径为 `m/44'/195'/0'/0/index`，索引由数据库序列分配。**已有地址后禁止修改网络、合约，seed 一经保存禁止覆盖**，避免已分配地址失去控制。客户端及节点均不接收私钥。扫描使用分页、15 分钟重叠窗口与每日全量对账；失败不推进扫描检查点。链上 API 使用全局约 3 QPS 的发送节奏，与地图 QPS 独立。
 
-钱包属于部署侧托管热钱包：管理员必须分别离线备份 seed、`ACCOUNT_MASTER_KEY` 与最新数据库。不要把 seed、数据库连接串或任何 API key 放进 Git 仓库、日志或截图。账本余额和链上资金归集相互独立，归集不会扣减客户余额。
+钱包属于部署侧托管热钱包：管理员必须分别离线备份助记词 / 旧版 seed、`ACCOUNT_MASTER_KEY` 与最新数据库。不要把钱包材料、数据库连接串或任何 API key 放进 Git 仓库、日志或截图。账本余额和链上资金归集相互独立，归集不会扣减客户余额。
+
+### 助记词与旧版 seed 备份
+
+新钱包使用密码学随机源生成 256-bit 熵，转换为 **24 个英文 BIP39 单词**，以空附加口令派生 64 字节 seed。**BIP39 附加口令为空，不是超级管理员密码**；超管密码只用于平台登录和导出确认。路径仍为 `m/44'/195'/0'/0/index`，从助记词恢复后生成相同地址。
+
+助记词与 seed 分别经 AES-GCM 加密后保存，使用不同关联数据绑定；普通配置接口只返回“已配置”标记，从不返回助记词。导出位于「计费管理 → 充值方式与钱包 → 导出助记词」，仅限超管：
+
+- 必须重新输入当前超管密码，并确认备份提示。
+- 服务端每位超管每五分钟最多三次导出尝试，记录不含秘密内容的审计事件。
+- 响应 `Cache-Control: no-store`；浏览器只在弹窗内存中暂存，60 秒后自动隐藏，切换标签页或关闭弹窗也清除显示状态。
+- 明文下载由用户再次点击触发。下载文件本身是高敏感离线备份，应自行妥善保存。
+- 导出前检查助记词派生 seed 与数据库 seed 一致，防止导出不能恢复当前钱包的错误材料。
+
+**旧钱包兼容**：旧版直接随机生成的原始 seed 并不是 BIP39 熵，不能简单转换成可恢复同一组地址的助记词。升级不替换旧 seed、不换地址、不自动切主网、不改变原有充值开关；页面显示「旧版 seed 钱包已保留」，支持经相同密码确认导出原始 seed。不要把旧 seed 截断当作助记词熵，或用新生成的钱包覆盖它。
+
+助记词只恢复密钥和地址；客户归属、派生索引、充值账本与余额仍需数据库备份。已存在的钱包始终禁止重新生成覆盖。
 
 ### 节点服务商与只读检测
 
@@ -100,6 +118,7 @@ HD 派生路径为 `m/44'/195'/0'/0/index`，索引由数据库序列分配。**
 
 | RPC 选项 | 网络预设 | 配置方式 |
 | --- | --- | --- |
+| TokenPocket（新部署默认） | 主网 | `https://trx.mytokenpocket.vip`，RPC 免 Key；索引与确认默认同地址 |
 | TronGrid | 主网、Shasta、Nile | 与下方索引服务共用地址及 `TRON-PRO-API-KEY` |
 | NOWNodes | 主网 | `https://trx.nownodes.io`，单独配置 `api-key` |
 | QuickNode | 主网、Nile | 粘贴控制台的完整 TRON HTTP REST HTTPS 端点，保留路径令牌 |
@@ -107,6 +126,8 @@ HD 派生路径为 `m/44'/195'/0'/0/index`，索引由数据库序列分配。**
 | 自定义 / 自建 | 主网、Shasta、Nile | HTTPS FullNode 地址；可选 `TRON-PRO-API-KEY`、`api-key`、`X-API-Key`、`Authorization` 或无请求头认证 |
 
 支持的网络以各服务商控制台实际可开通的网络为准；预设不代表已取得服务商额度或账号权限。
+
+TokenPocket 地址来自官网 2.29.0 APK 内置节点表，已只读验证区块、资源、USDT 余额、固化回执、V1 合约过滤及分页。创世区块与主网参考节点一致；本次测试未带 API Key。长期免费政策、额度及 SLA 未获确认，生产环境应监控可用性并保留其他服务商作为备用；此测试不等于完成新的主网充值或归集验收。
 
 **索引与 RPC 分开配置**：`/v1/accounts/.../transactions/trc20` 是 TronGrid V1 扩展，普通 FullNode 不提供该接口。充值发现仍使用「交易索引与确认服务」，固化回执查询也固定走此服务；其他 `/wallet/...` 请求走所选 RPC。索引服务和 RPC 必须连接**同一网络**，不要把 Shasta、Nile 和主网混用。
 
@@ -193,4 +214,5 @@ go test -race ./internal/portal -count=1 -v
 - [TRON 网络与节点](https://developers.tron.network/docs/exchangewallet-integrate-with-the-tron-network)、[测试币领取](https://developers.tron.network/docs/getting-testnet-tokens-on-tron)
 - [NOWNodes TRON REST](https://docs.nownodes.io/trx/mainnet/node-wallet/node-wallet/)、[QuickNode TRON API](https://www.quicknode.com/docs/tron/api-overview)、[GetBlock API 端点](https://docs.getblock.io/api-reference)
 - [TRON 构造、签名、广播与确认](https://developers.tron.network/docs/api-signature-and-broadcast-flow)
+- [BIP39 标准](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki)、[Go BIP39 实现](https://github.com/cosmos/go-bip39)、[官方参考向量](https://github.com/trezor/python-mnemonic/blob/master/vectors.json)
 - [InspireFace 原生接口](https://github.com/HyperInspire/InspireFace/blob/master/cpp/inspireface/c_api/inspireface.h)

@@ -5,26 +5,28 @@ import {Field} from './PortalPages'
 import {portalRequest,type PortalSettings,type WalletNodeProbe} from './portal'
 
 type WalletConfig=PortalSettings['wallet']
-const indexers={mainnet:'https://api.trongrid.io',shasta:'https://api.shasta.trongrid.io',nile:'https://nile.trongrid.io'}
-const providerNames={trongrid:'TronGrid',nownodes:'NOWNodes',quicknode:'QuickNode',getblock:'GetBlock',custom:'自定义 / 自建节点'}
+const tokenPocketURL='https://trx.mytokenpocket.vip'
+const indexers={mainnet:tokenPocketURL,shasta:'https://api.shasta.trongrid.io',nile:'https://nile.trongrid.io'}
+const providerNames={tokenpocket:'TokenPocket',trongrid:'TronGrid',nownodes:'NOWNodes',quicknode:'QuickNode',getblock:'GetBlock',custom:'自定义 / 自建节点'}
 const endpointHint={nownodes:'https://trx.nownodes.io',quicknode:'https://你的端点.tron-mainnet.quiknode.pro/访问令牌',getblock:'https://go.getblock.io/访问令牌',custom:'https://你的 TRON REST 节点'}
 
 export default function WalletNodeSettings({wallet:w,onChange}:{wallet:WalletConfig;onChange:(wallet:WalletConfig)=>void}){
   const [probing,setProbing]=useState(false),[probe,setProbe]=useState<WalletNodeProbe|null>(null),[error,setError]=useState('')
   const provider=w.node_provider||'trongrid'
   useEffect(()=>{setProbe(null);setError('')},[w.network,w.node_provider,w.node_url,w.node_api_key,w.rpc_url,w.rpc_api_key,w.rpc_api_header,w.rpc_url_configured])
-  const selectProvider=(next:WalletConfig['node_provider'])=>onChange({...w,node_provider:next,rpc_url:next==='nownodes'?'https://trx.nownodes.io':'',rpc_url_configured:false,rpc_url_host:'',rpc_api_key:'',rpc_api_key_configured:false,rpc_api_header:next==='nownodes'?'api-key':next==='custom'?'TRON-PRO-API-KEY':''})
+  const selectProvider=(next:WalletConfig['node_provider'])=>onChange({...w,node_provider:next,...(next==='tokenpocket'?{node_url:tokenPocketURL,node_api_key:'',node_api_key_configured:false}:next==='trongrid'?{node_url:w.network==='mainnet'?'https://api.trongrid.io':indexers[w.network],node_api_key:'',node_api_key_configured:false}:{}),rpc_url:next==='nownodes'?'https://trx.nownodes.io':'',rpc_url_configured:false,rpc_url_host:'',rpc_api_key:'',rpc_api_key_configured:false,rpc_api_header:next==='nownodes'?'api-key':next==='custom'?'TRON-PRO-API-KEY':''})
   const test=async()=>{
     setProbing(true);setError('');setProbe(null)
     try{setProbe(await portalRequest<WalletNodeProbe>('wallet/probe',{}))}catch(e){setError((e as Error).message)}finally{setProbing(false)}
   }
   return <div className="wallet-node-settings">
     <div className="form-grid">
-      <Field label="网络"><SearchSelect value={w.network} onChange={e=>{const network=e.target.value as WalletConfig['network'];onChange({...w,network,node_url:indexers[network],node_api_key:'',node_api_key_configured:false,node_provider:'trongrid',rpc_url:'',rpc_url_configured:false,rpc_url_host:'',rpc_api_key:'',rpc_api_key_configured:false,rpc_api_header:'',contract:network==='mainnet'?'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t':''})}}><option value="shasta">Shasta 测试网</option><option value="nile">Nile 测试网</option><option value="mainnet">TRON 主网</option></SearchSelect></Field>
+      <Field label="网络"><SearchSelect value={w.network} onChange={e=>{const network=e.target.value as WalletConfig['network'];onChange({...w,network,node_url:indexers[network],node_api_key:'',node_api_key_configured:false,node_provider:network==='mainnet'?'tokenpocket':'trongrid',rpc_url:'',rpc_url_configured:false,rpc_url_host:'',rpc_api_key:'',rpc_api_key_configured:false,rpc_api_header:'',contract:network==='mainnet'?'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t':''})}}><option value="shasta">Shasta 测试网</option><option value="nile">Nile 测试网</option><option value="mainnet">TRON 主网</option></SearchSelect></Field>
       <Field label="TRC20 USDT 合约（主网固定）"><input readOnly={w.network==='mainnet'} value={w.contract} onChange={e=>onChange({...w,contract:e.target.value})}/></Field>
-      <Field label="链上 RPC 服务商"><SearchSelect value={provider} onChange={e=>selectProvider(e.target.value as WalletConfig['node_provider'])}><option value="trongrid">TronGrid · 索引与 RPC 一体</option><option value="nownodes" disabled={w.network!=='mainnet'}>NOWNodes · 主网</option><option value="quicknode" disabled={w.network==='shasta'}>QuickNode · 主网 / Nile</option><option value="getblock" disabled={w.network==='shasta'}>GetBlock · 主网 / Nile</option><option value="custom">自定义 / 自建 · TRON HTTP REST</option></SearchSelect></Field>
+      <Field label="链上 RPC 服务商"><SearchSelect value={provider} onChange={e=>selectProvider(e.target.value as WalletConfig['node_provider'])}><option value="tokenpocket" disabled={w.network!=='mainnet'}>TokenPocket · 默认主网 · 免 Key</option><option value="trongrid">TronGrid · 索引与 RPC 一体</option><option value="nownodes" disabled={w.network!=='mainnet'}>NOWNodes · 主网</option><option value="quicknode" disabled={w.network==='shasta'}>QuickNode · 主网 / Nile</option><option value="getblock" disabled={w.network==='shasta'}>GetBlock · 主网 / Nile</option><option value="custom">自定义 / 自建 · TRON HTTP REST</option></SearchSelect></Field>
     </div>
-    {provider!=='trongrid'&&<div className="wallet-node-rpc">
+    {provider==='tokenpocket'&&<div className="wallet-node-preset"><Server/><div><strong>TokenPocket · 默认主网节点</strong><code>{tokenPocketURL}</code><p>RPC 固定使用此地址，默认索引与固化确认也使用同一服务，无需 API Key。第三方服务可用性与限流规则可能变化，可随时切换其他节点。</p></div></div>}
+    {provider!=='trongrid'&&provider!=='tokenpocket'&&<div className="wallet-node-rpc">
       <div className="form-grid">
         <Field label={`RPC 完整 HTTPS 端点${w.rpc_url_configured?`（已保存：${w.rpc_url_host}）`:''}`}><input type="password" autoComplete="new-password" value={w.rpc_url||''} readOnly={provider==='nownodes'} placeholder={w.rpc_url_configured?'留空保留已保存的完整端点':endpointHint[provider]} onChange={e=>onChange({...w,rpc_url:e.target.value})}/></Field>
         {provider==='custom'&&<Field label="RPC 认证请求头"><SearchSelect value={w.rpc_api_header} onChange={e=>onChange({...w,rpc_api_header:e.target.value,rpc_api_key:'',rpc_api_key_configured:false})}><option value="">无需请求头 / 令牌已在 URL 路径</option><option value="TRON-PRO-API-KEY">TRON-PRO-API-KEY</option><option value="api-key">api-key</option><option value="X-API-Key">X-API-Key</option><option value="Authorization">Authorization（填写完整 Bearer 值）</option></SearchSelect></Field>}

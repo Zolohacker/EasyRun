@@ -216,8 +216,8 @@ func (s *Service) saveSettings(r *http.Request, c Settings, section string) erro
 	if e != nil {
 		return e
 	}
-	old := Defaults()
-	if e = json.Unmarshal(raw, &old); e != nil {
+	old, e := decodeSettingsConfig(raw)
+	if e != nil {
 		return e
 	}
 	c, e = mergeSettings(old, c, section)
@@ -232,7 +232,7 @@ func (s *Service) saveSettings(r *http.Request, c Settings, section string) erro
 	if old.Wallet.NodeURL != c.Wallet.NodeURL && c.Wallet.NodeAPIKey == "" {
 		delete(sealed, "node")
 	}
-	if old.Wallet.NodeProvider != c.Wallet.NodeProvider || c.Wallet.NodeProvider == "trongrid" {
+	if old.Wallet.NodeProvider != c.Wallet.NodeProvider || c.Wallet.NodeProvider == "trongrid" || c.Wallet.NodeProvider == "tokenpocket" {
 		delete(sealed, "rpc_url")
 		delete(sealed, "rpc_key")
 		if c.Wallet.RPCURL == "" {
@@ -287,7 +287,7 @@ func (s *Service) saveSettings(r *http.Request, c Settings, section string) erro
 	if c.Wallet.Enabled && len(sealed["seed"]) == 0 {
 		return errors.New("请先生成并备份 HD seed")
 	}
-	if c.Wallet.Enabled && c.Wallet.NodeProvider != "trongrid" && len(sealed["rpc_url"]) == 0 {
+	if c.Wallet.Enabled && c.Wallet.NodeProvider != "trongrid" && c.Wallet.NodeProvider != "tokenpocket" && len(sealed["rpc_url"]) == 0 {
 		return errors.New("请填写所选服务商的 RPC 端点地址")
 	}
 	if c.Wallet.Enabled && c.Wallet.NodeProvider == "nownodes" && len(sealed["rpc_key"]) == 0 {

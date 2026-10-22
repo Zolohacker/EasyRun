@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/hex"
-	"encoding/json"
 	"math"
 	"net/http/httptest"
 	"strings"
@@ -171,8 +170,8 @@ func TestMergeSettingsSections(t *testing.T) {
 }
 
 func TestLegacyRechargeMethodDefault(t *testing.T) {
-	cfg := Defaults()
-	if err := json.Unmarshal([]byte(`{"mode":"commercial","pricing":{"per_run_micro":100000}}`), &cfg); err != nil || !cfg.Pricing.RechargeCodeEnabled || cfg.Wallet.Enabled {
+	cfg, err := decodeSettingsConfig([]byte(`{"mode":"commercial","pricing":{"per_run_micro":100000}}`))
+	if err != nil || !cfg.Pricing.RechargeCodeEnabled || cfg.Wallet.Enabled || cfg.Wallet.Network != "shasta" || cfg.Wallet.NodeProvider != "trongrid" {
 		t.Fatal("legacy code redemption must remain available without enabling chain deposits", err)
 	}
 }
