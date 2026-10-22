@@ -30,7 +30,7 @@ func (s *Service) externalJSON(ctx context.Context, method, address, key, header
 	}
 	req, e := http.NewRequestWithContext(ctx, method, address, bytes.NewReader(body))
 	if e != nil {
-		return e
+		return errors.New("外部服务请求地址不正确")
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("User-Agent", "EasyRun/2.0")
@@ -59,10 +59,17 @@ func (s *Service) externalJSON(ctx context.Context, method, address, key, header
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return fmt.Errorf("外部服务 HTTP %d", resp.StatusCode)
 	}
-	return json.NewDecoder(io.LimitReader(resp.Body, 4<<20)).Decode(output)
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 4<<20)).Decode(output); err != nil {
+		return errors.New("外部服务返回了非预期的 JSON 数据")
+	}
+	return nil
 }
 func (s *Service) node(ctx context.Context, w WalletConfig, path string, in, out any) error {
-	return s.externalJSON(ctx, "POST", w.NodeURL+path, w.NodeAPIKey, "TRON-PRO-API-KEY", in, out)
+	base, key, header, err := nodeEndpoint(w, path)
+	if err != nil {
+		return err
+	}
+	return s.externalJSON(ctx, "POST", base+path, key, header, in, out)
 }
 func abiAddress(address string) (string, error) {
 	raw, e := addressBytes(address)

@@ -74,11 +74,15 @@ func validateSettings(c *Settings) error {
 	if w.Network != "mainnet" && w.Network != "shasta" && w.Network != "nile" {
 		return errors.New("请选择 mainnet、shasta 或 nile 网络")
 	}
+	w.NodeURL = strings.TrimSpace(w.NodeURL)
 	u, e := url.Parse(w.NodeURL)
-	if e != nil || u.Scheme != "https" || u.Host == "" || u.User != nil || u.RawQuery != "" {
-		return errors.New("TRON 节点必须使用不含凭据的 HTTPS 地址")
+	if e != nil || len(w.NodeURL) > 2048 || u.Scheme != "https" || u.Hostname() == "" || u.User != nil || u.RawQuery != "" || u.ForceQuery || u.Fragment != "" || u.Opaque != "" {
+		return errors.New("交易索引服务必须使用不含账号密码、查询串或锚点的 HTTPS 地址")
 	}
 	w.NodeURL = strings.TrimRight(w.NodeURL, "/")
+	if err := validateNodeProvider(w); err != nil {
+		return err
+	}
 	if w.Network == "mainnet" {
 		w.Contract = MainnetUSDT
 	}
@@ -178,6 +182,10 @@ func mergeSettings(old, incoming Settings, section string) (Settings, error) {
 		old.Wallet.NodeURL = incoming.Wallet.NodeURL
 		old.Wallet.Contract = incoming.Wallet.Contract
 		old.Wallet.NodeAPIKey = incoming.Wallet.NodeAPIKey
+		old.Wallet.NodeProvider = incoming.Wallet.NodeProvider
+		old.Wallet.RPCURL = incoming.Wallet.RPCURL
+		old.Wallet.RPCAPIKey = incoming.Wallet.RPCAPIKey
+		old.Wallet.RPCAPIHeader = incoming.Wallet.RPCAPIHeader
 		old.Wallet.SeedHex = incoming.Wallet.SeedHex
 	case "collection":
 		old.Wallet.FeeeAPIKey = incoming.Wallet.FeeeAPIKey
@@ -220,6 +228,29 @@ func (s *Service) saveSettings(r *http.Request, c Settings, section string) erro
 	if e = json.Unmarshal(data, &sealed); e != nil {
 		return e
 	}
+	// Never forward credentials saved for a previous service to a new endpoint.
+	if old.Wallet.NodeURL != c.Wallet.NodeURL && c.Wallet.NodeAPIKey == "" {
+		delete(sealed, "node")
+	}
+	if old.Wallet.NodeProvider != c.Wallet.NodeProvider || c.Wallet.NodeProvider == "trongrid" {
+		delete(sealed, "rpc_url")
+		delete(sealed, "rpc_key")
+		if c.Wallet.RPCURL == "" {
+			c.Wallet.RPCURLHost = ""
+		}
+	} else if c.Wallet.RPCURL != "" && c.Wallet.RPCAPIKey == "" {
+		previousURL, err := s.vault.Decrypt(sealed["rpc_url"], "portal-secret:rpc_url")
+		if err != nil {
+			return err
+		}
+		if string(previousURL) != c.Wallet.RPCURL {
+			delete(sealed, "rpc_key")
+		}
+		clear(previousURL)
+	}
+	if c.Wallet.RPCAPIHeader == "" || (old.Wallet.RPCAPIHeader != c.Wallet.RPCAPIHeader && c.Wallet.RPCAPIKey == "") {
+		delete(sealed, "rpc_key")
+	}
 	var allocated bool
 	if e = tx.QueryRow(r.Context(), `SELECT EXISTS(SELECT 1 FROM portal_wallet_addresses)`).Scan(&allocated); e != nil {
 		return e
@@ -227,7 +258,7 @@ func (s *Service) saveSettings(r *http.Request, c Settings, section string) erro
 	if allocated && (old.Wallet.Network != c.Wallet.Network || old.Wallet.Contract != c.Wallet.Contract) {
 		return errors.New("已有充值地址，钱包网络与合约固定，请使用独立新部署切换网络")
 	}
-	for key, p := range map[string]*string{"mail": &c.Mail.Password, "seed": &c.Wallet.SeedHex, "node": &c.Wallet.NodeAPIKey, "feee": &c.Wallet.FeeeAPIKey} {
+	for key, p := range map[string]*string{"mail": &c.Mail.Password, "seed": &c.Wallet.SeedHex, "node": &c.Wallet.NodeAPIKey, "feee": &c.Wallet.FeeeAPIKey, "rpc_url": &c.Wallet.RPCURL, "rpc_key": &c.Wallet.RPCAPIKey} {
 		if *p != "" {
 			if key == "seed" && len(sealed[key]) > 0 {
 				return errors.New("HD seed 已配置且禁止覆盖；请保留离线备份")
@@ -239,8 +270,28 @@ func (s *Service) saveSettings(r *http.Request, c Settings, section string) erro
 		}
 		*p = ""
 	}
+	// Hostname is public metadata derived by the server, never client supplied.
+	c.Wallet.RPCURLHost = ""
+	if len(sealed["rpc_url"]) > 0 {
+		plain, err := s.vault.Decrypt(sealed["rpc_url"], "portal-secret:rpc_url")
+		if err != nil {
+			return err
+		}
+		u, err := url.Parse(string(plain))
+		clear(plain)
+		if err != nil {
+			return errors.New("已保存的 RPC 端点格式不正确")
+		}
+		c.Wallet.RPCURLHost = u.Host
+	}
 	if c.Wallet.Enabled && len(sealed["seed"]) == 0 {
 		return errors.New("请先生成并备份 HD seed")
+	}
+	if c.Wallet.Enabled && c.Wallet.NodeProvider != "trongrid" && len(sealed["rpc_url"]) == 0 {
+		return errors.New("请填写所选服务商的 RPC 端点地址")
+	}
+	if c.Wallet.Enabled && c.Wallet.NodeProvider == "nownodes" && len(sealed["rpc_key"]) == 0 {
+		return errors.New("NOWNodes 需要配置对应 API Key")
 	}
 	if c.Wallet.AutoCollect && len(sealed["feee"]) == 0 {
 		return errors.New("自动归集需要配置 Feee API key")

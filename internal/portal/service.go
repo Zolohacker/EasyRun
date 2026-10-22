@@ -76,9 +76,11 @@ func (s *Service) Settings(ctx context.Context, secrets bool) (Settings, error) 
 	c.Mail.PasswordConfigured = len(sealed["mail"]) > 0
 	c.Wallet.SeedConfigured = len(sealed["seed"]) > 0
 	c.Wallet.NodeAPIKeyConfigured = len(sealed["node"]) > 0
+	c.Wallet.RPCURLConfigured = len(sealed["rpc_url"]) > 0
+	c.Wallet.RPCAPIKeyConfigured = len(sealed["rpc_key"]) > 0
 	c.Wallet.FeeeAPIKeyConfigured = len(sealed["feee"]) > 0
 	if secrets {
-		for key, target := range map[string]*string{"mail": &c.Mail.Password, "seed": &c.Wallet.SeedHex, "node": &c.Wallet.NodeAPIKey, "feee": &c.Wallet.FeeeAPIKey} {
+		for key, target := range map[string]*string{"mail": &c.Mail.Password, "seed": &c.Wallet.SeedHex, "node": &c.Wallet.NodeAPIKey, "feee": &c.Wallet.FeeeAPIKey, "rpc_url": &c.Wallet.RPCURL, "rpc_key": &c.Wallet.RPCAPIKey} {
 			data, err := s.vault.Decrypt(sealed[key], "portal-secret:"+key)
 			if err != nil {
 				return c, err

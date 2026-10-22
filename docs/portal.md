@@ -85,7 +85,7 @@ TLS 连接校验服务器证书；没有跳过证书校验的开关。IMAP、POP
 
 钱包默认关闭、默认指向 **Shasta 测试网**。测试网地址不接收真实 USDT；切换主网后合约固定为官方 USDT 合约 `TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t`。
 
-1. 选择网络、HTTPS 节点及对应代币合约；主网合约固定。
+1. 选择网络、RPC 服务商、交易索引与确认服务及对应代币合约；主网合约固定。
 2. 输入超管密码，创建 HD 钱包并立即保存一次性展示的 seed；也可导入 32–64 字节十六进制 seed。
 3. 保存配置后启用充值，客户按需分配自己的专属收款地址。
 4. 后台每分钟扫描固化交易；核对合约、收款地址、交易回执与 Transfer 事件后入账。每个 `(txID, eventIndex)` 仅入账一次。
@@ -93,6 +93,32 @@ TLS 连接校验服务器证书；没有跳过证书校验的开关。IMAP、POP
 HD 派生路径为 `m/44'/195'/0'/0/index`，索引由数据库序列分配。**已有地址后禁止修改网络、合约，seed 一经保存禁止覆盖**，避免已分配地址失去控制。客户端及节点均不接收私钥。扫描使用分页、15 分钟重叠窗口与每日全量对账；失败不推进扫描检查点。链上 API 使用全局约 3 QPS 的发送节奏，与地图 QPS 独立。
 
 钱包属于部署侧托管热钱包：管理员必须分别离线备份 seed、`ACCOUNT_MASTER_KEY` 与最新数据库。不要把 seed、数据库连接串或任何 API key 放进 Git 仓库、日志或截图。账本余额和链上资金归集相互独立，归集不会扣减客户余额。
+
+### 节点服务商与只读检测
+
+在「计费管理 → 充值方式与钱包」选择 RPC：
+
+| RPC 选项 | 网络预设 | 配置方式 |
+| --- | --- | --- |
+| TronGrid | 主网、Shasta、Nile | 与下方索引服务共用地址及 `TRON-PRO-API-KEY` |
+| NOWNodes | 主网 | `https://trx.nownodes.io`，单独配置 `api-key` |
+| QuickNode | 主网、Nile | 粘贴控制台的完整 TRON HTTP REST HTTPS 端点，保留路径令牌 |
+| GetBlock | 主网、Nile | 粘贴 TRON **REST FullNode** 端点，保留访问令牌；不是 EVM JSON-RPC |
+| 自定义 / 自建 | 主网、Shasta、Nile | HTTPS FullNode 地址；可选 `TRON-PRO-API-KEY`、`api-key`、`X-API-Key`、`Authorization` 或无请求头认证 |
+
+支持的网络以各服务商控制台实际可开通的网络为准；预设不代表已取得服务商额度或账号权限。
+
+**索引与 RPC 分开配置**：`/v1/accounts/.../transactions/trc20` 是 TronGrid V1 扩展，普通 FullNode 不提供该接口。充值发现仍使用「交易索引与确认服务」，固化回执查询也固定走此服务；其他 `/wallet/...` 请求走所选 RPC。索引服务和 RPC 必须连接**同一网络**，不要把 Shasta、Nile 和主网混用。
+
+RPC 完整地址可能包含访问令牌，因此完整 URL 与 API Key 均使用 AES-GCM 加密入库；管理接口仅返回已配置标记和主机名，不回显路径令牌。索引密钥不会发送到第三方 RPC，RPC 密钥也不会发送到索引服务。相同端点留空保留已保存的秘密；更换服务商、端点或认证请求头时，旧 RPC 密钥不会自动沿用；更换索引地址也会清除旧索引密钥，请同时重新填写对应密钥。
+
+保存后点击 **「检测已保存的节点（只读）」**，检查 FullNode 最新区块、固化区块、TronGrid V1 交易列表，显示区块高度、耗时和失败原因。检测仅查询公共地址，不签名、不广播、不租赁能量；仅超管可用，每分钟最多三次。HTTP 200 但区块 / 列表格式不正确仍判为失败。此检查不自动核验节点实际网络，也不能代替真实充值验收。
+
+### 真实测试网验收
+
+2026-10-23 已在独立数据库和独立钱包完成 **Shasta + TronGrid** 真实充值测试：领取 1,000 测试 USDT，固化成功后余额自动增加至 1,000；连续重扫三次仍只有一条充值流水。重启后地址、余额和流水保持不变，不同客户派生不同地址。详细证据、交易链接和未测范围见 [测试网充值验收记录](./testnet-recharge-verification.md)。
+
+主网充值、第三方商业 RPC 的真实凭据联调、Feee 付费租赁及真实归集尚未包含在这次测试中。自动化测试另覆盖无效回执、错误合约 / 收款地址、重复交易、多事件去重和服务商密钥隔离。
 
 ## Feee 能量与归集
 
@@ -164,5 +190,7 @@ go test -race ./internal/portal -count=1 -v
 - [Feee API 约定](https://feee.io/doc/en-US/api/intro/convenient.html)
 - [Feee 能量估算](https://feee.io/doc/en-US/api/orderv2/estimate_energy.html)、[订单报价](https://feee.io/doc/en-US/api/orderv2/price.html)、[创建订单](https://feee.io/doc/en-US/api/orderv2/submit.html)
 - [TRON TRC20 记录](https://developers.tron.network/docs/get-trc20-transaction-history)
+- [TRON 网络与节点](https://developers.tron.network/docs/exchangewallet-integrate-with-the-tron-network)、[测试币领取](https://developers.tron.network/docs/getting-testnet-tokens-on-tron)
+- [NOWNodes TRON REST](https://docs.nownodes.io/trx/mainnet/node-wallet/node-wallet/)、[QuickNode TRON API](https://www.quicknode.com/docs/tron/api-overview)、[GetBlock API 端点](https://docs.getblock.io/api-reference)
 - [TRON 构造、签名、广播与确认](https://developers.tron.network/docs/api-signature-and-broadcast-flow)
 - [InspireFace 原生接口](https://github.com/HyperInspire/InspireFace/blob/master/cpp/inspireface/c_api/inspireface.h)

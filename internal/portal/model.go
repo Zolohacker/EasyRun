@@ -40,6 +40,13 @@ type WalletConfig struct {
 	Contract             string `json:"contract"`
 	NodeAPIKey           string `json:"node_api_key,omitempty"`
 	NodeAPIKeyConfigured bool   `json:"node_api_key_configured"`
+	NodeProvider         string `json:"node_provider"`
+	RPCURL               string `json:"rpc_url,omitempty"`
+	RPCURLConfigured     bool   `json:"rpc_url_configured"`
+	RPCURLHost           string `json:"rpc_url_host"`
+	RPCAPIKey            string `json:"rpc_api_key,omitempty"`
+	RPCAPIKeyConfigured  bool   `json:"rpc_api_key_configured"`
+	RPCAPIHeader         string `json:"rpc_api_header"`
 	SeedHex              string `json:"seed_hex,omitempty"`
 	SeedConfigured       bool   `json:"seed_configured"`
 	FeeeAPIKey           string `json:"feee_api_key,omitempty"`
@@ -63,7 +70,7 @@ type Settings struct {
 }
 
 func Defaults() Settings {
-	return Settings{Mode: "personal", Mail: MailConfig{Protocol: "starttls", Port: 587}, Pricing: Pricing{RechargeCodeEnabled: true}, Wallet: WalletConfig{Network: "shasta", NodeURL: "https://api.shasta.trongrid.io", CollectCron: "0 3 * * *", Timezone: "Asia/Shanghai", MinCollectMicro: 5 * MicroUSDT, FeeLimitSun: 30_000_000, EnergyPriceSun: 100}}
+	return Settings{Mode: "personal", Mail: MailConfig{Protocol: "starttls", Port: 587}, Pricing: Pricing{RechargeCodeEnabled: true}, Wallet: WalletConfig{Network: "shasta", NodeURL: "https://api.shasta.trongrid.io", NodeProvider: "trongrid", RPCAPIHeader: "TRON-PRO-API-KEY", CollectCron: "0 3 * * *", Timezone: "Asia/Shanghai", MinCollectMicro: 5 * MicroUSDT, FeeLimitSun: 30_000_000, EnergyPriceSun: 100}}
 }
 
 type LedgerEntry struct {

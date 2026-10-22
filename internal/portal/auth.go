@@ -155,6 +155,7 @@ func (s *Service) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v1/portal/wallet/address", s.depositAddress)
 	mux.HandleFunc("POST /api/v1/portal/wallet/seed", s.generateSeed)
 	mux.HandleFunc("POST /api/v1/portal/wallet/scan", s.scanNow)
+	mux.HandleFunc("POST /api/v1/portal/wallet/probe", s.probeWalletNodes)
 	mux.HandleFunc("GET /api/v1/portal/wallet/sweeps", s.listSweeps)
 	mux.HandleFunc("POST /api/v1/portal/wallet/collect", s.collectNow)
 }
