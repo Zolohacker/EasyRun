@@ -1,7 +1,7 @@
 <div align="center">
-  <img src="./docs/assets/easyrun-banner.svg" alt="EasyRun" width="100%" />
+  <img src="./docs/assets/easyrun-banner.svg" alt="EasyRun · 智能代跑平台" width="100%" />
 
-  <p><strong>多账号智能跑步任务、地图路线编排与运行数据管理平台</strong></p>
+  <p><strong>面向闪动校园的智能代跑平台</strong></p>
 
   <p>
     <img alt="Go 1.23" src="https://img.shields.io/badge/Go-1.23-00ADD8?style=flat-square&amp;logo=go&amp;logoColor=white" />
@@ -25,9 +25,9 @@
 
 ## ✨ 项目简介
 
-**EasyRun** 是一个面向 **闪动校园**、采用 Go、React 与 PostgreSQL 构建的现代化跑步任务平台。它把账号会话、计划规则、校园区域、路线规划、任务调度、运行记录和系统配置集中到一个高科技风格的 Web 控制台中。
+**EasyRun** 是一个面向 **闪动校园**、采用 Go、React 与 PostgreSQL 构建的**智能代跑平台**。它把账号会话、计划规则、校园区域、路线规划、任务调度、运行记录和系统配置集中到一个高科技风格的 Web 控制台中。
 
-**当前适配版本：闪动校园 Android `8.7.9`**（Build `26101910`，`env=9 / Pro`）。这是本项目已适配的客户端基线，不代表其他版本已经验证兼容。
+**当前适配版本：闪动校园 Android `8.7.9`**（Build `26101910`）。这是本项目已适配的客户端基线，不代表其他版本已经验证兼容。
 
 后端使用 Go 独立完成协议适配、签名加密、登录验证、资源同步、路线编排和任务执行；前端使用 React + TypeScript 提供响应式管理界面。系统支持多账号、多地图 Key、数据库持久化缓存以及可观测的任务工作池。
 
@@ -245,7 +245,6 @@ Set-Location EasyRun
 | Build Version | `26101910` |
 | App Code | `SD001` |
 | Platform | `2` |
-| Environment | `9`（Pro） |
 
 主要管理 API：
 
