@@ -16,6 +16,7 @@ import (
 	"github.com/Zolohacker/EasyRun/internal/activity"
 	"github.com/Zolohacker/EasyRun/internal/platform"
 	"github.com/Zolohacker/EasyRun/internal/protocol"
+	"github.com/Zolohacker/EasyRun/internal/safety"
 	"github.com/Zolohacker/EasyRun/internal/store"
 	"github.com/robfig/cron/v3"
 )
@@ -31,6 +32,7 @@ type Billing interface {
 
 type Options struct {
 	Billing           Billing
+	Guard             interface{ Check(context.Context) error }
 	Workers           int
 	WorkerConcurrency int
 	PollInterval      time.Duration
@@ -58,6 +60,7 @@ type workItem struct {
 
 type Scheduler struct {
 	billing           Billing
+	guard             interface{ Check(context.Context) error }
 	store             store.Store
 	submitter         Submitter
 	pollInterval      time.Duration
@@ -96,6 +99,7 @@ func New(database store.Store, submitter Submitter, options Options) *Scheduler 
 	}
 	return &Scheduler{
 		billing: options.Billing,
+		guard:   options.Guard,
 		store:   database, submitter: submitter, workerProcesses: options.Workers,
 		workerConcurrency: options.WorkerConcurrency,
 		pollInterval:      options.PollInterval, runTimeout: options.RunTimeout, logger: options.Logger,
@@ -161,6 +165,11 @@ func (s *Scheduler) restartWorkersLocked() {
 }
 
 func (s *Scheduler) Trigger(ctx context.Context, jobID string) (string, error) {
+	if s.guard != nil {
+		if err := s.guard.Check(ctx); err != nil {
+			return "", err
+		}
+	}
 	job, err := s.store.GetJob(ctx, jobID)
 	if err != nil {
 		return "", err
@@ -193,6 +202,13 @@ func (s *Scheduler) poll(ctx context.Context) {
 }
 
 func (s *Scheduler) pollOnce(ctx context.Context) {
+	var blocked error
+	if s.guard != nil {
+		blocked = s.guard.Check(ctx)
+		if errors.Is(blocked, safety.ErrMaintenance) {
+			return
+		}
+	}
 	now := time.Now().UTC()
 	jobs, err := s.store.DueJobs(ctx, now, 50)
 	if err != nil {
@@ -226,6 +242,11 @@ func (s *Scheduler) pollOnce(ctx context.Context) {
 			continue
 		}
 		item := workItem{executionID: platform.NewID("exec"), jobID: job.ID, scheduled: *job.NextRunAt}
+		if blocked != nil {
+			s.skipped.Add(1)
+			s.recordSkipped(ctx, item, job.AccountID, blocked.Error())
+			continue
+		}
 		select {
 		case s.queue <- item:
 			s.queued.Add(1)
@@ -277,6 +298,13 @@ func (s *Scheduler) execute(parent context.Context, item workItem, workerProcess
 	finish := func(status, message string, runID *string, remoteRunID string) {
 		if err := s.store.FinishExecution(context.WithoutCancel(ctx), execution.ID, status, runID, remoteRunID, message, time.Now().UTC()); err != nil {
 			s.logger.Error("finish automation execution", "execution_id", execution.ID, "error", err)
+		}
+	}
+	if s.guard != nil {
+		if err := s.guard.Check(ctx); err != nil {
+			s.skipped.Add(1)
+			finish("skipped", err.Error(), nil, "")
+			return
 		}
 	}
 	if !jobContext.Account.Enabled {

@@ -6,13 +6,16 @@ COPY frontend ./frontend
 RUN mkdir -p internal/httpapi/web/dist && cd frontend && npm run build
 
 FROM golang:1.23-bookworm AS build
+ARG VERSION=0.1.0
+ARG COMMIT=source
+ARG BUILT_AT=unknown
 RUN apt-get update && apt-get install -y --no-install-recommends gcc libc6-dev && rm -rf /var/lib/apt/lists/*
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
 COPY --from=web /src/internal/httpapi/web/dist ./internal/httpapi/web/dist
-RUN CGO_ENABLED=1 GOOS=linux go build -buildvcs=false -trimpath -ldflags="-s -w" -o /out/easyrun ./cmd/server
+RUN CGO_ENABLED=1 GOOS=linux go build -buildvcs=false -trimpath -ldflags="-s -w -X github.com/Zolohacker/EasyRun/internal/buildinfo.Version=${VERSION} -X github.com/Zolohacker/EasyRun/internal/buildinfo.Commit=${COMMIT} -X github.com/Zolohacker/EasyRun/internal/buildinfo.BuiltAt=${BUILT_AT} -X github.com/Zolohacker/EasyRun/internal/buildinfo.BuildType=container" -o /out/easyrun ./cmd/server
 
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates tzdata libstdc++6 libgomp1 && rm -rf /var/lib/apt/lists/* && useradd -M -u 10001 app

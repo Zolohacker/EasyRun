@@ -2,7 +2,11 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -12,6 +16,7 @@ import (
 	_ "time/tzdata"
 
 	"github.com/Zolohacker/EasyRun/internal/automation"
+	"github.com/Zolohacker/EasyRun/internal/buildinfo"
 	"github.com/Zolohacker/EasyRun/internal/config"
 	"github.com/Zolohacker/EasyRun/internal/faceengine"
 	"github.com/Zolohacker/EasyRun/internal/httpapi"
@@ -21,13 +26,36 @@ import (
 	"github.com/Zolohacker/EasyRun/internal/protocol"
 	"github.com/Zolohacker/EasyRun/internal/route"
 	"github.com/Zolohacker/EasyRun/internal/runner"
+	"github.com/Zolohacker/EasyRun/internal/safety"
 	"github.com/Zolohacker/EasyRun/internal/securestore"
+	"github.com/Zolohacker/EasyRun/internal/selfupdate"
 	"github.com/Zolohacker/EasyRun/internal/store"
 )
 
 func main() {
+	// Candidate metadata probes must not load credentials, initialize native
+	// libraries, open the database or start network/background work.
+	if len(os.Args) == 2 && os.Args[1] == "--version-json" {
+		_ = json.NewEncoder(os.Stdout).Encode(buildinfo.Current())
+		return
+	}
 	runCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	if len(os.Args) == 3 && os.Args[1] == "--supervise" {
+		addr := os.Getenv("HTTP_ADDR")
+		if addr == "" {
+			addr = ":8080"
+		}
+		health, err := selfupdate.HealthURL(addr)
+		if err == nil {
+			err = selfupdate.Supervise(runCtx, os.Args[2], health)
+		}
+		if err != nil {
+			slog.Error("platform supervisor stopped", "error", err)
+			os.Exit(1)
+		}
+		return
+	}
 	cfg, err := config.Load()
 	if err != nil {
 		slog.Error("invalid configuration", "error", err)
@@ -155,13 +183,46 @@ func main() {
 		os.Exit(2)
 	}
 	runService := runner.New(scopedStore, vault, protocolClient, planner)
+	var deviceID [16]byte
+	if _, err := rand.Read(deviceID[:]); err != nil {
+		logger.Error("initialize version checker identity", "error", err)
+		os.Exit(2)
+	}
+	versionCtx, versionCancel := context.WithTimeout(runCtx, cfg.DatabaseTimeout)
+	versionGuard, err := safety.New(versionCtx, runStore.Pool(), protocolClient,
+		fmt.Sprintf("%s:%d", cfg.ProtocolBaseURL, cfg.ProtocolEnvironment),
+		protocol.Device{ID: hex.EncodeToString(deviceID[:]), ModelName: "Redmi|23013RK75C", SystemVersion: "14"})
+	versionCancel()
+	if err != nil {
+		logger.Error("initialize client version guard", "error", err)
+		os.Exit(2)
+	}
+	runService.SetExecutionGuard(versionGuard)
+	portalService.ClientVersions = versionGuard
+	// Perform the startup probe before opening execution paths, even when a
+	// still-fresh persisted result exists. Errors remain visible in the guard.
+	_ = versionGuard.Refresh(runCtx, true)
+	go versionGuard.Run(runCtx)
 	portalService.Faces = runService
-	go portalService.Run(runCtx)
 	scheduler := automation.New(scopedStore, runService, automation.Options{
-		Billing: portalService,
+		Billing: portalService, Guard: versionGuard,
 		Workers: cfg.AutomationWorkers, WorkerConcurrency: cfg.AutomationWorkerConcurrency, PollInterval: cfg.AutomationPoll,
 		RunTimeout: cfg.AutomationRunTimeout, Logger: logger,
 	})
+	updateCtx, updateCancel := context.WithTimeout(runCtx, cfg.DatabaseTimeout)
+	platformUpdates, err := selfupdate.New(updateCtx, selfupdate.Options{
+		DB: runStore.Pool(), Vault: vault, Guard: portalService,
+		Busy:     func() bool { v := scheduler.Stats(); return v.Active > 0 || v.QueueDepth > 0 },
+		Shutdown: func() { go func() { time.Sleep(time.Second); stop() }() },
+	})
+	updateCancel()
+	if err != nil {
+		logger.Error("initialize platform updater", "error", err)
+		os.Exit(2)
+	}
+	portalService.PlatformUpdates = platformUpdates
+	go portalService.Run(runCtx)
+	go platformUpdates.Run(runCtx)
 	go func() {
 		ticker := time.NewTicker(time.Second)
 		defer ticker.Stop()

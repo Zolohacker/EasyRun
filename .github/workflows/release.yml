@@ -1,0 +1,125 @@
+name: Release binaries
+
+on:
+  push:
+    tags: ['v[0-9]*.[0-9]*.[0-9]*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {runner: windows-latest, os: windows, arch: amd64}
+          - {runner: ubuntu-22.04, os: linux, arch: amd64}
+          - {runner: ubuntu-22.04, os: linux, arch: arm64}
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Native compiler (Windows)
+        if: runner.os == 'Windows'
+        id: msys2
+        uses: msys2/setup-msys2@ec48f7c5447b3140e2b088413ae3a55687bccb6e # v2
+        with:
+          msystem: UCRT64
+          install: mingw-w64-ucrt-x86_64-gcc
+      - name: Add Windows compiler to PATH
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          '${{ steps.msys2.outputs.msys2-location }}\ucrt64\bin' >> $env:GITHUB_PATH
+      - name: Native compiler (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y gcc libc6-dev gcc-aarch64-linux-gnu
+      - name: Build embedded frontend
+        working-directory: frontend
+        run: npm ci && npm test && npm run build
+      - name: Test native host
+        run: go test ./... && go vet ./...
+        env:
+          CGO_ENABLED: '1'
+      - name: Build and package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          CGO_ENABLED: '1'
+          GOOS: windows
+          GOARCH: amd64
+        run: |
+          if ($env:GITHUB_REF_NAME -notmatch '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$') { throw 'Stable semver tag required' }
+          $version = $env:GITHUB_REF_NAME.Substring(1)
+          $stamp = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
+          $pkg = 'github.com/Zolohacker/EasyRun/internal/buildinfo'
+          New-Item -ItemType Directory -Force out, release | Out-Null
+          go build -buildvcs=false -trimpath -ldflags "-s -w -X $pkg.Version=$version -X $pkg.Commit=$env:GITHUB_SHA -X $pkg.BuiltAt=$stamp -X $pkg.BuildType=release" -o out/easyrun.exe ./cmd/server
+          if ($LASTEXITCODE -ne 0) { throw 'Go build failed' }
+          $metadata = (& ./out/easyrun.exe --version-json | ConvertFrom-Json)
+          if ($metadata.version -ne $version -or -not $metadata.native_face) { throw 'Invalid release metadata' }
+          Compress-Archive -LiteralPath out/easyrun.exe -DestinationPath "release/easyrun_${env:GITHUB_REF_NAME}_windows_amd64.zip"
+      - name: Build and package (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        env:
+          CGO_ENABLED: '1'
+          TARGET_ARCH: ${{ matrix.arch }}
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REF_NAME" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
+          export GOOS=linux GOARCH="$TARGET_ARCH"
+          if [ "$GOARCH" = arm64 ]; then export CC=aarch64-linux-gnu-gcc; fi
+          pkg=github.com/Zolohacker/EasyRun/internal/buildinfo
+          mkdir -p out release
+          go build -buildvcs=false -trimpath -ldflags "-s -w -X $pkg.Version=${GITHUB_REF_NAME#v} -X $pkg.Commit=$GITHUB_SHA -X $pkg.BuiltAt=$(date -u +%Y-%m-%dT%H:%M:%SZ) -X $pkg.BuildType=release" -o out/easyrun ./cmd/server
+          if [ "$GOARCH" = amd64 ]; then ./out/easyrun --version-json; fi
+          tar -czf "release/easyrun_${GITHUB_REF_NAME}_linux_${GOARCH}.tar.gz" -C out easyrun
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: release-${{ matrix.os }}-${{ matrix.arch }}
+          path: release/*
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8.0.2
+        with:
+          pattern: release-*
+          merge-multiple: true
+          path: release
+      - name: Checksums and immutable-by-convention release
+        shell: bash
+        working-directory: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          sha256sum easyrun_*.zip easyrun_*.tar.gz > checksums.txt
+          # Existing releases are never overwritten. Publish only after all
+          # platforms and checksums are complete, so clients cannot see a
+          # half-populated stable release.
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then echo 'Release already exists'; exit 1; fi
+          gh release create "$RELEASE_TAG" --verify-tag --draft --title "EasyRun $RELEASE_TAG" --generate-notes ./*
+          gh release edit "$RELEASE_TAG" --draft=false --latest

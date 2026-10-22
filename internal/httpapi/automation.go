@@ -11,6 +11,7 @@ import (
 	"github.com/Zolohacker/EasyRun/internal/activity"
 	automationpkg "github.com/Zolohacker/EasyRun/internal/automation"
 	"github.com/Zolohacker/EasyRun/internal/platform"
+	"github.com/Zolohacker/EasyRun/internal/safety"
 )
 
 func (a *api) listJobs(w http.ResponseWriter, r *http.Request) {
@@ -84,6 +85,10 @@ func (a *api) runJobNow(w http.ResponseWriter, r *http.Request) {
 	}
 	executionID, err := a.automation.Trigger(r.Context(), r.PathValue("id"))
 	if err != nil {
+		if errors.Is(err, safety.ErrBlocked) || errors.Is(err, safety.ErrMaintenance) {
+			writeError(w, http.StatusServiceUnavailable, "automation_blocked", err.Error())
+			return
+		}
 		a.storeError(w, err)
 		return
 	}

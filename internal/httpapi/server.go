@@ -10,12 +10,14 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/Zolohacker/EasyRun/internal/activity"
 	"github.com/Zolohacker/EasyRun/internal/automation"
+	"github.com/Zolohacker/EasyRun/internal/buildinfo"
 	"github.com/Zolohacker/EasyRun/internal/config"
 	"github.com/Zolohacker/EasyRun/internal/mapapi"
 	"github.com/Zolohacker/EasyRun/internal/portal"
@@ -169,6 +171,8 @@ func (a *api) health(w http.ResponseWriter, _ *http.Request) {
 		status, state = http.StatusServiceUnavailable, "degraded"
 	}
 	writeJSON(w, status, map[string]any{
+		"build":              buildinfo.Current(),
+		"boot_id":            os.Getenv("EASYRUN_BOOT_ID"),
 		"status":             state,
 		"database":           databaseOK,
 		"map_api_configured": a.mapConfigured(),

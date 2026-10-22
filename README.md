@@ -45,6 +45,8 @@ TSuL6W7SsLJpWkYkJSdXP64LGetttttttt
 
 > 当前仓库处于 **Private Preview** 阶段，正在进行公开发布前的文档、测试和许可证整理。
 
+后台总览提供客户端最新版本 / 强更状态与平台更新。客户端强更时服务端暂停跑步自动化；平台支持稳定 Release 检查、一键更新、闲时自动安装与失败回滚。配置与发布方式见 [版本门禁与平台更新](./docs/updates.md)。
+
 <p align="center">
   <img src="./docs/assets/overview.png" alt="EasyRun 运行总览" width="720" />
 </p>

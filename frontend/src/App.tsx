@@ -12,6 +12,7 @@ import AmapRouteViewport from './AmapRouteViewport'
 import { WalletPage } from './PortalPages'
 import { BillingAdminPage, PortalSystemSettings, UsersAdminPage } from './AdminPages'
 import AccountFaceLinkPanel from './AccountFaceLinkPanel'
+import VersionManagementPanel from './VersionManagementPanel'
 import {ListViewport,Pagination,usePagination} from './Pagination'
 import { money, portalRequest, type BillingSummary, type PortalUser } from './portal'
 import type {
@@ -85,7 +86,7 @@ export default function App({user,onLogout}:{user:PortalUser;onLogout:()=>Promis
   }, [customer])
 
   const page = {
-    overview: <DashboardOverview customer={customer} accounts={accounts} plans={plans} areas={areas} jobs={jobs} executions={executions} runs={runs} metrics={metrics} config={config} onNavigate={setTab}/>,
+    overview: <DashboardOverview user={user} notify={notify} customer={customer} accounts={accounts} plans={plans} areas={areas} jobs={jobs} executions={executions} runs={runs} metrics={metrics} config={config} onNavigate={setTab}/>,
     accounts: <Accounts accounts={accounts} user={user} notify={notify} onRefresh={refresh}/>,
     route_test: <RouteTest accounts={accounts} plans={plans} areas={areas} runs={runs} metrics={metrics} config={config} notify={notify} onRefresh={refresh}/>,
     automation: <Automation jobs={jobs} accounts={accounts} plans={plans} areas={areas} executions={executions} config={config} customer={customer} notify={notify} onRefresh={refresh}/>,
@@ -150,7 +151,8 @@ function SystemRow({icon, label, live}: {icon:ReactNode; label:string; live?:boo
   return <div className="system-row">{icon}<span>{label}</span><i className={live ? 'live' : ''}/></div>
 }
 
-function DashboardOverview({accounts, plans, areas, jobs, executions, runs, metrics, config, onNavigate,customer}: {
+function DashboardOverview({accounts, plans, areas, jobs, executions, runs, metrics, config, onNavigate,customer,user,notify}: {
+  user:PortalUser;notify:(message:string)=>void
   customer:boolean
   accounts:Account[]; plans:Plan[]; areas:Area[]; jobs:Job[]; executions:Execution[]; runs:RunListItem[]
   metrics:MapMetrics|null; config:Config|null; onNavigate:(tab:Tab)=>void
@@ -189,6 +191,7 @@ function DashboardOverview({accounts, plans, areas, jobs, executions, runs, metr
     </section>
 
     {customer&&plans.length>0&&<section className="panel portal-section"><div className="panel-heading"><div><span className="kicker">PLAN PROGRESS</span><h2>我的计划进度</h2></div></div><div className="record-progress-grid">{plans.map(plan=><div key={plan.id}><p className="portal-hint">{accounts.find(a=>a.id===plan.source_account_id)?.name}</p><PlanProgressCard plan={plan}/></div>)}</div></section>}
+    {!customer&&<VersionManagementPanel user={user} notify={notify}/>}
     <section className="overview-primary-grid">
       <div className="panel overview-grid-card overview-schedule-panel">
         <div className="panel-heading"><h2>即将执行</h2><button className="text-action" onClick={()=>onNavigate('automation')}>全部任务 <ChevronRight/></button></div>

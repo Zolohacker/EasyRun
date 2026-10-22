@@ -18,6 +18,7 @@ import (
 	"github.com/Zolohacker/EasyRun/internal/platform"
 	"github.com/Zolohacker/EasyRun/internal/protocol"
 	"github.com/Zolohacker/EasyRun/internal/route"
+	"github.com/Zolohacker/EasyRun/internal/safety"
 	"github.com/Zolohacker/EasyRun/internal/securestore"
 	"github.com/Zolohacker/EasyRun/internal/store"
 )
@@ -29,6 +30,7 @@ type Service struct {
 	planner   RoutePlanner
 	generator *activity.Generator
 	locks     sync.Map
+	guard     *safety.Guard
 }
 
 type RoutePlanner interface {
@@ -60,6 +62,8 @@ type RecordInspection struct {
 func New(database store.Store, vault *securestore.Vault, client *protocol.Client, planner RoutePlanner) *Service {
 	return &Service{store: database, vault: vault, client: client, planner: planner, generator: activity.NewGenerator()}
 }
+
+func (s *Service) SetExecutionGuard(guard *safety.Guard) { s.guard = guard }
 
 func (s *Service) UpdateAccount(ctx context.Context, desired platform.Account, password string) (platform.Account, error) {
 	existing, err := s.store.GetAccount(ctx, desired.ID)
@@ -322,6 +326,14 @@ func (s *Service) SyncResources(ctx context.Context, accountID string) (Resource
 }
 
 func (s *Service) Submit(ctx context.Context, account platform.Account, plan platform.RunningPlan, area platform.RunningArea, request activity.SubmissionRequest) (protocol.SubmissionResult, activity.Run, error) {
+	if s.guard != nil {
+		guarded, finish, err := s.guard.Begin(ctx)
+		if err != nil {
+			return protocol.SubmissionResult{}, activity.Run{}, err
+		}
+		defer finish()
+		ctx = guarded
+	}
 	if s.planner == nil || s.generator == nil {
 		return protocol.SubmissionResult{}, activity.Run{}, errors.New("起跑后轨迹规划服务未配置")
 	}
@@ -384,6 +396,9 @@ func (s *Service) Submit(ctx context.Context, account platform.Account, plan pla
 		},
 	)
 	if err != nil {
+		if cause := context.Cause(ctx); errors.Is(cause, safety.ErrBlocked) || errors.Is(cause, safety.ErrMaintenance) {
+			return protocol.SubmissionResult{}, run, cause
+		}
 		s.observeSessionError(ctx, &stored, err)
 		return protocol.SubmissionResult{}, run, err
 	}

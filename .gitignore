@@ -1,4 +1,6 @@
 /bin/
+.easyrun-update/
+*.rollback-next
 /models/
 /.env
 /.env.local

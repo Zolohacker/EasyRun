@@ -39,7 +39,12 @@ if ($Rebuild -or -not (Test-Path -LiteralPath $Executable)) {
     }
 }
 
-Write-Host "Starting local application at http://127.0.0.1:8080"
+$Supervisor = Join-Path $ProjectRoot "bin\easyrun-supervisor.exe"
+# A separate executable is essential on Windows: the supervisor must not keep
+# the replaceable server EXE locked. Run this script from the project root.
+Copy-Item -LiteralPath $Executable -Destination $Supervisor -Force
+Set-Location -LiteralPath $ProjectRoot
+Write-Host "Starting supervised local application at http://127.0.0.1:8080"
 Write-Host "Press Ctrl+C to stop the application; the local database keeps running."
-& $Executable
+& $Supervisor --supervise $Executable
 exit $LASTEXITCODE

@@ -165,9 +165,9 @@ func (s *Service) collectNow(w http.ResponseWriter, r *http.Request) {
 		fail(w, 400, "主网归集需要先配置 Feee API key")
 		return
 	}
-	select {
-	case s.collectRequested <- struct{}{}:
-	default:
+	if err := s.queueCollection(); err != nil {
+		fail(w, 503, err.Error())
+		return
 	}
 	s.audit(r.Context(), "wallet.collect-request", cfg.Wallet.CollectionAddress)
 	jsonReply(w, 202, map[string]string{"status": "queued"})
@@ -203,7 +203,6 @@ func (s *Service) listSweeps(w http.ResponseWriter, r *http.Request) {
 func (s *Service) Run(ctx context.Context) {
 	ticker := time.NewTicker(15 * time.Second)
 	defer ticker.Stop()
-	lastMaintenance := time.Time{}
 	for {
 		select {
 		case <-ctx.Done():
@@ -211,26 +210,37 @@ func (s *Service) Run(ctx context.Context) {
 		case <-ticker.C:
 		case <-s.scanRequested:
 		case <-s.collectRequested:
-			s.collect(ctx)
 		}
-		cfg, e := s.Settings(ctx, true)
-		if e != nil {
+		collect, finish, ok := s.beginBackground()
+		if !ok {
 			continue
 		}
-		if time.Since(lastMaintenance) >= time.Minute {
-			s.maintenance(ctx)
-			lastMaintenance = time.Now()
-		}
-		if !cfg.Wallet.Enabled {
-			continue
-		}
-		if e = s.processDepositScans(ctx, cfg.Wallet); e != nil && ctx.Err() == nil {
-			slog.Warn("process requested deposit checks", "error", e)
-		}
-		s.reconcileSweeps(ctx, cfg.Wallet)
-		if cfg.Wallet.AutoCollect && s.claimCollectionTime(ctx, cfg.Wallet) {
-			s.collect(ctx)
-		}
+		s.runWalletCycle(ctx, collect)
+		finish()
+	}
+}
+
+func (s *Service) runWalletCycle(ctx context.Context, collect bool) {
+	if collect {
+		s.collect(ctx)
+	}
+	cfg, e := s.Settings(ctx, true)
+	if e != nil {
+		return
+	}
+	if time.Since(s.lastBackgroundMaintenance) >= time.Minute {
+		s.maintenance(ctx)
+		s.lastBackgroundMaintenance = time.Now()
+	}
+	if !cfg.Wallet.Enabled {
+		return
+	}
+	if e = s.processDepositScans(ctx, cfg.Wallet); e != nil && ctx.Err() == nil {
+		slog.Warn("process requested deposit checks", "error", e)
+	}
+	s.reconcileSweeps(ctx, cfg.Wallet)
+	if cfg.Wallet.AutoCollect && s.claimCollectionTime(ctx, cfg.Wallet) {
+		s.collect(ctx)
 	}
 }
 

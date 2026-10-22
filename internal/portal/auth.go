@@ -161,6 +161,12 @@ func (s *Service) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v1/portal/wallet/probe", s.probeWalletNodes)
 	mux.HandleFunc("GET /api/v1/portal/wallet/sweeps", s.listSweeps)
 	mux.HandleFunc("POST /api/v1/portal/wallet/collect", s.collectNow)
+	mux.HandleFunc("GET /api/v1/portal/system/versions", s.getVersions)
+	mux.HandleFunc("POST /api/v1/portal/system/versions/client/check", s.checkClientVersion)
+	mux.HandleFunc("POST /api/v1/portal/system/versions/platform/check", s.checkPlatformVersion)
+	mux.HandleFunc("PUT /api/v1/portal/system/versions/settings", s.putUpdateSettings)
+	mux.HandleFunc("POST /api/v1/portal/system/versions/platform/install", s.installPlatformUpdate)
+	mux.HandleFunc("POST /api/v1/portal/system/versions/platform/rollback", s.rollbackPlatformUpdate)
 }
 func secureCookie(r *http.Request) bool { return r.TLS != nil || os.Getenv("COOKIE_SECURE") == "true" }
 func (s *Service) session(w http.ResponseWriter, r *http.Request, id string) error {

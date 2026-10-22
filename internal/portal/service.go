@@ -16,23 +16,32 @@ import (
 	"time"
 
 	"github.com/Zolohacker/EasyRun/internal/platform"
+	"github.com/Zolohacker/EasyRun/internal/safety"
 	"github.com/Zolohacker/EasyRun/internal/securestore"
+	"github.com/Zolohacker/EasyRun/internal/selfupdate"
 	"github.com/Zolohacker/EasyRun/internal/store"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type Service struct {
-	db               *pgxpool.Pool
-	vault            *securestore.Vault
-	store            store.Store
-	Faces            FaceWriter
-	http             *http.Client
-	mu               sync.Mutex
-	rates            map[string]rateEntry
-	networkMu        sync.Mutex
-	nextRequest      time.Time
-	scanRequested    chan struct{}
-	collectRequested chan struct{}
+	db                        *pgxpool.Pool
+	vault                     *securestore.Vault
+	store                     store.Store
+	Faces                     FaceWriter
+	ClientVersions            *safety.Guard
+	PlatformUpdates           *selfupdate.Service
+	http                      *http.Client
+	mu                        sync.Mutex
+	rates                     map[string]rateEntry
+	networkMu                 sync.Mutex
+	nextRequest               time.Time
+	scanRequested             chan struct{}
+	collectRequested          chan struct{}
+	backgroundMu              sync.Mutex
+	backgroundRunning         bool
+	backgroundPaused          bool
+	collectionPending         bool
+	lastBackgroundMaintenance time.Time
 }
 type FaceWriter interface {
 	SetCustomFace(context.Context, string, string, []byte) (platform.FaceProfile, error)
