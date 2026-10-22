@@ -421,13 +421,7 @@ func (s *Service) ensureRunQuota(ctx context.Context, account *platform.Account,
 		weekDistanceRuleM = plan.Rules.WeekMaxDistanceM
 	}
 
-	dailyLimit := request.DailyRunLimit
-	if dailyLimit <= 0 {
-		dailyLimit = 1
-	}
-	if dayRule > 0 && dailyLimit > dayRule {
-		dailyLimit = dayRule
-	}
+	dailyLimit := activity.ResolveDailyRunLimit(request.DailyRunLimit, dayRule)
 	weeklyLimit := request.WeeklyRunLimit
 	if weeklyLimit <= 0 {
 		if weekMinRule > 0 {

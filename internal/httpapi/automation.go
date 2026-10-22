@@ -131,15 +131,10 @@ func (a *api) normalizeJob(r *http.Request, job *platform.AutomationJob) error {
 	if plan.SourceAccountID != job.AccountID || plan.RemoteCode == "" {
 		return errors.New("plan_id must be a plan synchronized from this account")
 	}
-	if job.DailyRunLimit <= 0 {
-		job.DailyRunLimit = 1
-	}
 	if plan.Rules.DayMaxTimes > 0 && job.DailyRunLimit > plan.Rules.DayMaxTimes {
 		return fmt.Errorf("daily_run_limit 必须在 1–%d 次之间", plan.Rules.DayMaxTimes)
 	}
-	if plan.Rules.DayMaxTimes <= 0 && job.DailyRunLimit != 1 {
-		return errors.New("服务器尚未返回每日次数范围，请先同步账号计划")
-	}
+	job.DailyRunLimit = activity.ResolveDailyRunLimit(job.DailyRunLimit, plan.Rules.DayMaxTimes)
 	weekMin, weekMax := plan.Rules.WeekMinTimes, plan.Rules.WeekMaxTimes
 	if weekMax > 0 {
 		if weekMin <= 0 {

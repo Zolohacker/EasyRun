@@ -170,7 +170,7 @@ CREATE TABLE IF NOT EXISTS automation_jobs (
     plan_id text NOT NULL REFERENCES running_plans(id) ON DELETE RESTRICT,
     area_id text NOT NULL REFERENCES running_areas(id) ON DELETE RESTRICT,
 	target_distance_m double precision NOT NULL DEFAULT 0 CHECK (target_distance_m >= 0),
-	daily_run_limit integer NOT NULL DEFAULT 1 CHECK (daily_run_limit >= 1),
+	daily_run_limit integer NOT NULL DEFAULT 0 CHECK (daily_run_limit >= 0),
 	weekly_run_limit integer NOT NULL DEFAULT 0 CHECK (weekly_run_limit >= 0),
 	daily_distance_limit_m double precision NOT NULL DEFAULT 0 CHECK (daily_distance_limit_m >= 0),
 	weekly_distance_limit_m double precision NOT NULL DEFAULT 0 CHECK (weekly_distance_limit_m >= 0),
@@ -235,10 +235,25 @@ ALTER TABLE running_plans ADD COLUMN IF NOT EXISTS remote_code text NOT NULL DEF
 ALTER TABLE running_plans ADD COLUMN IF NOT EXISTS semester_code text NOT NULL DEFAULT '';
 ALTER TABLE running_plans ADD COLUMN IF NOT EXISTS rules jsonb NOT NULL DEFAULT '{}'::jsonb;
 	ALTER TABLE automation_jobs ADD COLUMN IF NOT EXISTS target_distance_m double precision NOT NULL DEFAULT 0;
-ALTER TABLE automation_jobs ADD COLUMN IF NOT EXISTS daily_run_limit integer NOT NULL DEFAULT 1;
+ALTER TABLE automation_jobs ADD COLUMN IF NOT EXISTS daily_run_limit integer NOT NULL DEFAULT 0;
 ALTER TABLE automation_jobs ADD COLUMN IF NOT EXISTS weekly_run_limit integer NOT NULL DEFAULT 0;
 ALTER TABLE automation_jobs ADD COLUMN IF NOT EXISTS daily_distance_limit_m double precision NOT NULL DEFAULT 0;
 ALTER TABLE automation_jobs ADD COLUMN IF NOT EXISTS weekly_distance_limit_m double precision NOT NULL DEFAULT 0;
+ALTER TABLE automation_jobs ALTER COLUMN daily_run_limit SET DEFAULT 0;
+ALTER TABLE automation_jobs DROP CONSTRAINT IF EXISTS automation_jobs_daily_run_limit_check;
+ALTER TABLE automation_jobs ADD CONSTRAINT automation_jobs_daily_run_limit_check CHECK (daily_run_limit >= 0);
+UPDATE automation_jobs AS job
+SET daily_run_limit = 0
+FROM running_plans AS plan
+WHERE job.plan_id = plan.id
+  AND COALESCE(
+    CASE
+      WHEN COALESCE(plan.rules->>'day_max_times', '') ~ '^[0-9]+$'
+        THEN (plan.rules->>'day_max_times')::integer
+      ELSE 0
+    END,
+    0
+  ) <= 0;
 ALTER TABLE automation_jobs DROP COLUMN IF EXISTS name;
 ALTER TABLE automation_jobs ADD COLUMN IF NOT EXISTS schedule_mode text NOT NULL DEFAULT 'cron';
 ALTER TABLE automation_jobs ADD COLUMN IF NOT EXISTS manual_time text NOT NULL DEFAULT '';
