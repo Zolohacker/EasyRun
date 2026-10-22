@@ -1,0 +1,10 @@
+.git
+.env
+.env.local
+.local
+.pgtest
+artifacts
+bin
+frontend/node_modules
+frontend/*.tsbuildinfo
+*.log

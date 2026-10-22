@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="360" viewBox="0 0 1200 360" role="img" aria-labelledby="title desc">
+  <title id="title">EasyRun</title>
+  <desc id="desc">EasyRun 智能跑步任务与路线编排平台</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#041713"/>
+      <stop offset="0.52" stop-color="#082a22"/>
+      <stop offset="1" stop-color="#071d2a"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#36e6a0"/>
+      <stop offset="1" stop-color="#34c8ff"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#35e8a4" stop-opacity=".34"/>
+      <stop offset="1" stop-color="#35e8a4" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="blur"><feGaussianBlur stdDeviation="24"/></filter>
+    <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#000" flood-opacity=".32"/>
+    </filter>
+  </defs>
+  <rect width="1200" height="360" rx="32" fill="url(#bg)"/>
+  <circle cx="1040" cy="30" r="250" fill="url(#glow)" filter="url(#blur)"/>
+  <circle cx="90" cy="360" r="210" fill="#1d81a8" opacity=".12" filter="url(#blur)"/>
+  <g opacity=".16" stroke="#7cf5c5" fill="none">
+    <path d="M0 74H1200M0 144H1200M0 214H1200M0 284H1200"/>
+    <path d="M110 0V360M250 0V360M390 0V360M530 0V360M670 0V360M810 0V360M950 0V360M1090 0V360"/>
+  </g>
+  <g transform="translate(118 84)" filter="url(#shadow)">
+    <rect width="190" height="190" rx="48" fill="#082a22" stroke="#39e6a2" stroke-opacity=".55" stroke-width="2"/>
+    <path d="M32 106h34l17-52 28 92 20-67 14 27h20" fill="none" stroke="url(#accent)" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="164" cy="106" r="7" fill="#38d8bb" stroke="none"/>
+  </g>
+  <g transform="translate(365 105)">
+    <text x="0" y="86" fill="#f2fff9" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="90" font-weight="750" letter-spacing="-3">EasyRun</text>
+    <rect x="3" y="112" width="510" height="5" rx="2.5" fill="url(#accent)"/>
+    <text x="3" y="160" fill="#a8c8bf" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="25" font-weight="500" letter-spacing="2">智能跑步任务与路线编排平台</text>
+  </g>
+  <g transform="translate(1048 286)" fill="none" stroke="#78f2c1" stroke-linecap="round">
+    <path d="M0 0c28-48 55-48 82 0" opacity=".35" stroke-width="3"/>
+    <circle cx="0" cy="0" r="6" fill="#36e6a0" stroke="none"/>
+    <circle cx="82" cy="0" r="6" fill="#34c8ff" stroke="none"/>
+  </g>
+</svg>

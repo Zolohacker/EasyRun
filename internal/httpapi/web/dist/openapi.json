@@ -1,0 +1,1366 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "EasyRun API",
+    "version": "8.7.9-platform.1",
+    "description": "Go-native multi-account login-first onboarding, account resource sync, route planning, returned-record preflight and automation API."
+  },
+  "servers": [
+    {
+      "url": "/"
+    }
+  ],
+  "paths": {
+    "/healthz": {
+      "get": {
+        "summary": "Health check",
+        "responses": {
+          "200": {
+            "description": "Healthy"
+          },
+          "503": {
+            "description": "Dependency unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/config": {
+      "get": {
+        "summary": "Public runtime and protocol version",
+        "responses": {
+          "200": {
+            "description": "Configuration"
+          }
+        }
+      }
+    },
+    "/api/v1/map/metrics": {
+      "get": {
+        "summary": "Map limiter, retry and cache metrics",
+        "responses": {
+          "200": {
+            "description": "Metrics"
+          }
+        }
+      }
+    },
+    "/api/v1/accounts": {
+      "get": {
+        "summary": "List accounts",
+        "responses": {
+          "200": {
+            "description": "Accounts"
+          }
+        }
+      },
+      "post": {
+        "summary": "Password-login first, then persist the authenticated account",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccountInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Remote login succeeded and account was created"
+          },
+          "202": {
+            "description": "SMS verification required; no account row has been created"
+          }
+        }
+      }
+    },
+    "/api/v1/accounts/{id}": {
+      "get": {
+        "summary": "Get an account",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Account"
+          }
+        }
+      },
+      "put": {
+        "summary": "Update account, device or account-scoped defaults",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ID"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccountInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Account updated"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete an account",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ID"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          }
+        }
+      }
+    },
+    "/api/v1/accounts/{id}/login": {
+      "post": {
+        "summary": "Password login, encrypted session persistence and resource sync",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Authenticated account"
+          }
+        }
+      }
+    },
+    "/api/v1/accounts/{id}/sms/request": {
+      "post": {
+        "summary": "Automatically solve slider verification and request an SMS code",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "SMS challenge ticket"
+          }
+        }
+      }
+    },
+    "/api/v1/accounts/{id}/sms/verify": {
+      "post": {
+        "summary": "Complete SMS login and sync account resources",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ID"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SMSVerifyInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Authenticated account"
+          }
+        }
+      }
+    },
+    "/api/v1/accounts/{id}/sync": {
+      "post": {
+        "summary": "Read plans and school fences available to this account",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Account-scoped plans and areas"
+          }
+        }
+      }
+    },
+    "/api/v1/accounts/{id}/records": {
+      "get": {
+        "summary": "List the account's remote running records",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ID"
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Remote records"
+          }
+        }
+      }
+    },
+    "/api/v1/accounts/{id}/records/{record_id}": {
+      "get": {
+        "summary": "Get one remote running record",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ID"
+          },
+          {
+            "name": "record_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Remote record"
+          }
+        }
+      }
+    },
+    "/api/v1/accounts/{id}/records/summary": {
+      "get": {
+        "summary": "Get remote running summary",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Remote summary"
+          }
+        }
+      }
+    },
+    "/api/v1/plans": {
+      "get": {
+        "summary": "List cached account-scoped plans",
+        "responses": {
+          "200": {
+            "description": "Plans"
+          }
+        }
+      }
+    },
+    "/api/v1/plans/{id}": {
+      "get": {
+        "summary": "Get a cached plan and its account-sourced running rules",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Plan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Plan"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/plans/{id}/sample": {
+      "post": {
+        "summary": "Sample mutually consistent distance, pace, cadence and stride from the middle 70 percent of the plan rules",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ID"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "seed": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "Optional deterministic seed; zero selects a server timestamp seed"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Sampled targets and effective windows",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TargetSelection"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/areas": {
+      "get": {
+        "summary": "List cached account-scoped campus areas",
+        "responses": {
+          "200": {
+            "description": "Areas"
+          }
+        }
+      }
+    },
+    "/api/v1/areas/{id}": {
+      "get": {
+        "summary": "Get a cached campus area",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Area"
+          }
+        }
+      }
+    },
+    "/api/v1/routes/plan": {
+      "post": {
+        "summary": "Automatically select provider roads or a boundary-derived field graph, pass required checkpoints, and score randomized candidates",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlanRouteRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Route"
+          }
+        }
+      }
+    },
+    "/api/v1/runs/simulate": {
+      "post": {
+        "summary": "Generate and validate a local run preview",
+        "responses": {
+          "201": {
+            "description": "Run preview"
+          }
+        }
+      }
+    },
+    "/api/v1/runs": {
+      "get": {
+        "summary": "List local runs",
+        "responses": {
+          "200": {
+            "description": "Runs"
+          }
+        }
+      }
+    },
+    "/api/v1/runs/{id}": {
+      "get": {
+        "summary": "Get a local run",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Run"
+          }
+        }
+      }
+    },
+    "/api/v1/jobs": {
+      "get": {
+        "summary": "List automation jobs",
+        "responses": {
+          "200": {
+            "description": "Jobs"
+          }
+        }
+      },
+      "post": {
+        "summary": "Create a fixed-time or server-plan-window-random automation job",
+        "responses": {
+          "201": {
+            "description": "Job"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AutomationJob"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/jobs/{id}": {
+      "get": {
+        "summary": "Get a job",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Job"
+          }
+        }
+      },
+      "put": {
+        "summary": "Update or toggle a job",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Job"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AutomationJob"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete a job",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ID"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          }
+        }
+      }
+    },
+    "/api/v1/jobs/{id}/run": {
+      "post": {
+        "summary": "Queue a job immediately",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ID"
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Queued"
+          }
+        }
+      }
+    },
+    "/api/v1/executions": {
+      "get": {
+        "summary": "List automation executions",
+        "responses": {
+          "200": {
+            "description": "Executions"
+          }
+        }
+      }
+    },
+    "/api/v1/accounts/onboard/password": {
+      "post": {
+        "summary": "Password-login first, then persist the authenticated account",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccountInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Remote login succeeded and account was created"
+          },
+          "202": {
+            "description": "Password login requires an SMS verification code; no row created"
+          }
+        }
+      }
+    },
+    "/api/v1/accounts/onboard/sms/request": {
+      "post": {
+        "summary": "Request an onboarding SMS code without creating an account row",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccountInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "SMS challenge and normalized account draft"
+          }
+        }
+      }
+    },
+    "/api/v1/accounts/onboard/sms/verify": {
+      "post": {
+        "summary": "Verify onboarding SMS code and persist only after remote login succeeds",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "account",
+                  "code",
+                  "ticket"
+                ],
+                "properties": {
+                  "account": {
+                    "type": "object"
+                  },
+                  "password": {
+                    "type": "string",
+                    "writeOnly": true
+                  },
+                  "code": {
+                    "type": "string"
+                  },
+                  "ticket": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Authenticated account created"
+          }
+        }
+      }
+    },
+    "/api/v1/accounts/{id}/records/{record_id}/inspection": {
+      "get": {
+        "summary": "Get one remote record with preflight inspection",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ID"
+          },
+          {
+            "name": "record_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "semester_code",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Remote record and consistency inspection"
+          }
+        }
+      }
+    },
+    "/api/v1/accounts/{id}/face": {
+      "get": {
+        "summary": "Read the cached face profile for an account",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Face profile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FaceProfile"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/accounts/{id}/face/sync": {
+      "post": {
+        "summary": "Refresh the bound face image and recognition settings",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Refreshed face profile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FaceProfile"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/accounts/{id}/face/check": {
+      "post": {
+        "summary": "Run an active face check with the account's selected model",
+        "description": "Refreshes getUserFaceImg first. faceModelType=2 runs the extracted MNN resource pack in-process; other model types use getToken(tokenType=1) and the cloud CompareFace path.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ID"
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "source": {
+                    "type": "string",
+                    "enum": [
+                      "effective",
+                      "base",
+                      "custom"
+                    ],
+                    "default": "effective"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Active face comparison result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FaceDetectionResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The selected image is missing, invalid, or contains no detectable face"
+          },
+          "502": {
+            "description": "The app token API or Facebody upstream rejected the request"
+          }
+        }
+      }
+    },
+    "/api/v1/accounts/{id}/face/image": {
+      "get": {
+        "summary": "Read a locally decrypted face image",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ID"
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "effective",
+                "base",
+                "custom"
+              ],
+              "default": "effective"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Face image",
+            "content": {
+              "image/jpeg": {},
+              "image/png": {},
+              "image/webp": {}
+            }
+          }
+        }
+      },
+      "put": {
+        "summary": "Set an encrypted custom face image",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ID"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "image"
+                ],
+                "properties": {
+                  "image": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated face profile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FaceProfile"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Clear the custom face and return to the bound image",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Updated face profile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FaceProfile"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "parameters": {
+      "ID": {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      }
+    },
+    "schemas": {
+      "Point": {
+        "type": "object",
+        "required": [
+          "lat",
+          "lng"
+        ],
+        "properties": {
+          "lat": {
+            "type": "number"
+          },
+          "lng": {
+            "type": "number"
+          }
+        }
+      },
+      "Profile": {
+        "type": "object",
+        "required": [
+          "target_pace_sec_per_km",
+          "cadence_spm",
+          "target_stride_m"
+        ],
+        "properties": {
+          "target_pace_sec_per_km": {
+            "type": "number",
+            "description": "Selected pace in seconds per kilometre"
+          },
+          "cadence_spm": {
+            "type": "number",
+            "description": "Selected or kinematically derived steps per minute"
+          },
+          "target_stride_m": {
+            "type": "number",
+            "description": "Stride in metres per step, linked by stride = 60000 / (pace * cadence)"
+          },
+          "sample_interval_s": {
+            "type": "number"
+          },
+          "pace_variation_pct": {
+            "type": "number"
+          },
+          "gps_quality": {
+            "type": "string",
+            "enum": [
+              "open",
+              "mixed",
+              "urban"
+            ]
+          },
+          "terrain": {
+            "type": "string",
+            "enum": [
+              "flat",
+              "rolling",
+              "hilly"
+            ]
+          },
+          "start_altitude_m": {
+            "type": "number"
+          },
+          "pause_rate_per_hour": {
+            "type": "number"
+          }
+        }
+      },
+      "RunRules": {
+        "type": "object",
+        "description": "Rules read from run/querySunRunAbstractInfoV2.schoolDemandRule",
+        "properties": {
+          "min_distance_m": {
+            "type": "number"
+          },
+          "max_distance_m": {
+            "type": "number"
+          },
+          "fastest_pace_sec_per_km": {
+            "type": "number",
+            "description": "Numeric lower pace bound; upstream field maxPace"
+          },
+          "slowest_pace_sec_per_km": {
+            "type": "number",
+            "description": "Numeric upper pace bound; upstream field minPace"
+          },
+          "min_cadence_spm": {
+            "type": "number"
+          },
+          "max_cadence_spm": {
+            "type": "number"
+          },
+          "max_segment_stride_m": {
+            "type": "number",
+            "description": "Upper threshold from segmentStrideAvg, converted from centimetres"
+          },
+          "segment_stride_exception_num": {
+            "type": "integer"
+          },
+          "swing_amplitude_threshold": {
+            "type": "integer"
+          },
+          "source": {
+            "type": "string"
+          },
+          "active_start_date": {
+            "type": "string",
+            "description": "Inclusive plan start date returned by the server"
+          },
+          "active_end_date": {
+            "type": "string",
+            "description": "Inclusive plan end date returned by the server"
+          },
+          "time_windows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RunTimeWindow"
+            }
+          }
+        }
+      },
+      "TargetWindow": {
+        "type": "object",
+        "properties": {
+          "min_distance_m": {
+            "type": "number"
+          },
+          "max_distance_m": {
+            "type": "number"
+          },
+          "fastest_pace_sec_per_km": {
+            "type": "number"
+          },
+          "slowest_pace_sec_per_km": {
+            "type": "number"
+          },
+          "min_cadence_spm": {
+            "type": "number"
+          },
+          "max_cadence_spm": {
+            "type": "number"
+          },
+          "min_stride_m": {
+            "type": "number"
+          },
+          "max_stride_m": {
+            "type": "number"
+          }
+        }
+      },
+      "TargetSelection": {
+        "type": "object",
+        "required": [
+          "policy",
+          "target_distance_m",
+          "profile",
+          "window"
+        ],
+        "properties": {
+          "policy": {
+            "type": "string",
+            "const": "middle_70_percent"
+          },
+          "target_distance_m": {
+            "type": "number"
+          },
+          "profile": {
+            "$ref": "#/components/schemas/Profile"
+          },
+          "window": {
+            "$ref": "#/components/schemas/TargetWindow"
+          }
+        }
+      },
+      "Plan": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "target_distance_m",
+          "profile",
+          "rules"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "source_account_id": {
+            "type": "string"
+          },
+          "remote_code": {
+            "type": "string"
+          },
+          "semester_code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "target_distance_m": {
+            "type": "number"
+          },
+          "profile": {
+            "$ref": "#/components/schemas/Profile"
+          },
+          "rules": {
+            "$ref": "#/components/schemas/RunRules"
+          }
+        }
+      },
+      "AccountInput": {
+        "type": "object",
+        "required": [
+          "login_name"
+        ],
+        "properties": {
+          "login_name": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string",
+            "writeOnly": true
+          },
+          "name": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "default_plan_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "default_area_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "model_name": {
+            "type": "string"
+          },
+          "system_version": {
+            "type": "string"
+          }
+        }
+      },
+      "SMSVerifyInput": {
+        "type": "object",
+        "required": [
+          "code",
+          "ticket"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "ticket": {
+            "type": "string"
+          }
+        }
+      },
+      "PlanRouteRequest": {
+        "type": "object",
+        "required": [
+          "start",
+          "target_distance_m"
+        ],
+        "properties": {
+          "start": {
+            "$ref": "#/components/schemas/Point"
+          },
+          "via": {
+            "type": "array",
+            "description": "Required server checkpoints, visited before distance-filling road nodes",
+            "items": {
+              "$ref": "#/components/schemas/Point"
+            }
+          },
+          "target_distance_m": {
+            "type": "number",
+            "minimum": 300,
+            "maximum": 100000
+          },
+          "heading_deg": {
+            "type": "number",
+            "deprecated": true,
+            "description": "Legacy compatibility field; road-network planning does not enforce a heading or route shape"
+          },
+          "candidate_count": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 8
+          },
+          "boundary": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Point"
+            }
+          },
+          "seed": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Random seed used to select road-network waypoints"
+          }
+        }
+      },
+      "RunTimeWindow": {
+        "type": "object",
+        "required": [
+          "day_type",
+          "times",
+          "start_minute",
+          "end_minute"
+        ],
+        "properties": {
+          "day_type": {
+            "type": "string",
+            "enum": [
+              "every_day",
+              "workday",
+              "weekend"
+            ],
+            "description": "Normalized from schoolDemandRule.timeFragment.timeType 0/1/2"
+          },
+          "raw_time_type": {
+            "type": "string"
+          },
+          "times": {
+            "type": "string"
+          },
+          "start_minute": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1439
+          },
+          "end_minute": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1440
+          },
+          "tag_type": {
+            "type": "integer"
+          }
+        }
+      },
+      "AutomationJob": {
+        "type": "object",
+        "required": [
+          "account_id",
+          "plan_id",
+          "area_id",
+          "target_distance_m",
+          "name",
+          "schedule_mode",
+          "timezone",
+          "enabled"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "readOnly": true
+          },
+          "account_id": {
+            "type": "string"
+          },
+          "plan_id": {
+            "type": "string"
+          },
+          "area_id": {
+            "type": "string"
+          },
+          "target_distance_m": {
+            "type": "number"
+          },
+          "name": {
+            "type": "string"
+          },
+          "schedule_mode": {
+            "type": "string",
+            "enum": [
+              "manual",
+              "plan_random",
+              "cron"
+            ]
+          },
+          "manual_time": {
+            "type": "string",
+            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+          },
+          "day_scope": {
+            "type": "string",
+            "enum": [
+              "every_day",
+              "workday",
+              "weekend"
+            ]
+          },
+          "cron_expr": {
+            "type": "string",
+            "description": "Generated for manual schedules; accepted directly for legacy cron mode"
+          },
+          "timezone": {
+            "type": "string",
+            "default": "Asia/Shanghai"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "next_run_at": {
+            "type": "string",
+            "format": "date-time",
+            "readOnly": true
+          },
+          "last_run_at": {
+            "type": "string",
+            "format": "date-time",
+            "readOnly": true
+          }
+        }
+      },
+      "FaceProfile": {
+        "type": "object",
+        "required": [
+          "account_id",
+          "face_enabled",
+          "face_auth",
+          "similarity_value",
+          "base_configured",
+          "custom_configured",
+          "effective_source"
+        ],
+        "properties": {
+          "account_id": {
+            "type": "string"
+          },
+          "face_enabled": {
+            "type": "integer"
+          },
+          "face_auth": {
+            "type": "boolean"
+          },
+          "similarity_value": {
+            "type": "integer"
+          },
+          "face_time": {
+            "type": "integer"
+          },
+          "body_enabled": {
+            "type": "boolean"
+          },
+          "body_rate": {
+            "type": "integer"
+          },
+          "face_model_type": {
+            "type": "integer"
+          },
+          "base_configured": {
+            "type": "boolean"
+          },
+          "custom_configured": {
+            "type": "boolean"
+          },
+          "effective_source": {
+            "type": "string",
+            "enum": [
+              "none",
+              "base",
+              "custom"
+            ]
+          },
+          "synced_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "FaceDetectionResult": {
+        "type": "object",
+        "required": [
+          "source",
+          "provider",
+          "request_id",
+          "confidence",
+          "threshold",
+          "passed",
+          "checked_at",
+          "elapsed_ms"
+        ],
+        "properties": {
+          "source": {
+            "type": "string",
+            "enum": [
+              "base",
+              "custom"
+            ]
+          },
+          "provider": {
+            "type": "string",
+            "example": "app-sts/aliyun-facebody"
+          },
+          "request_id": {
+            "type": "string"
+          },
+          "confidence": {
+            "type": "number",
+            "format": "double"
+          },
+          "threshold": {
+            "type": "integer"
+          },
+          "passed": {
+            "type": "boolean"
+          },
+          "checked_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "elapsed_ms": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      }
+    }
+  }
+}

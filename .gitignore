@@ -1,0 +1,13 @@
+/bin/
+/.env
+/.env.local
+*.log
+/frontend/node_modules/
+/frontend/*.tsbuildinfo
+/.pgtest/
+/.local/
+/artifacts/
+/.idea/
+/.vscode/
+.DS_Store
+coverage.out

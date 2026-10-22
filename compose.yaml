@@ -1,0 +1,39 @@
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-easyrun}
+      POSTGRES_USER: ${POSTGRES_USER:-easyrun}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - easyrun_db:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  app:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      HTTP_ADDR: :8080
+      DATABASE_URL: postgres://${POSTGRES_USER:-easyrun}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/${POSTGRES_DB:-easyrun}?sslmode=disable
+      DATABASE_MAX_CONNS: 12
+      ACCOUNT_MASTER_KEY: ${ACCOUNT_MASTER_KEY:?set ACCOUNT_MASTER_KEY in .env}
+      MAP_API_BASE_URL: ${MAP_API_BASE_URL:-https://restapi.amap.com}
+      MAP_API_KEY: ${MAP_API_KEY:-}
+      MAP_API_QPS: ${MAP_API_QPS:-3}
+      MAP_API_BURST: ${MAP_API_BURST:-2}
+      MAP_ROUTE_CANDIDATES: ${MAP_ROUTE_CANDIDATES:-4}
+      AUTOMATION_WORKERS: ${AUTOMATION_WORKERS:-2}
+      AUTOMATION_WORKER_CONCURRENCY: ${AUTOMATION_WORKER_CONCURRENCY:-1}
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+
+volumes:
+  easyrun_db:
