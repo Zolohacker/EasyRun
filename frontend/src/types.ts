@@ -67,6 +67,7 @@ export type Area = {
 
 export type Account = {
   id: string; login_name: string; name: string; note?: string; enabled: boolean
+  owner_user_id?: string
   student_number?: string
   default_plan_id?: string; default_area_id?: string; fence_index: number
   device_id: string; model_name: string; system_version: string

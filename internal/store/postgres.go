@@ -277,6 +277,8 @@ CREATE TABLE IF NOT EXISTS automation_executions (
     remote_run_id text NOT NULL DEFAULT '',
     error text NOT NULL DEFAULT ''
 );
+CREATE INDEX IF NOT EXISTS automation_executions_started_page_idx ON automation_executions(started_at DESC,id DESC);
+CREATE INDEX IF NOT EXISTS automation_executions_account_page_idx ON automation_executions(account_id,started_at DESC,id DESC);
 ALTER TABLE runner_accounts ADD COLUMN IF NOT EXISTS login_name text NOT NULL DEFAULT '';
 ALTER TABLE runner_accounts ADD COLUMN IF NOT EXISTS fence_index integer NOT NULL DEFAULT 0;
 ALTER TABLE runner_accounts ADD COLUMN IF NOT EXISTS device_id text NOT NULL DEFAULT '';

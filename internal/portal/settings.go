@@ -63,6 +63,13 @@ func validateSettings(c *Settings) error {
 			return errors.New("价格超出允许范围")
 		}
 	}
+	c.Pricing.RechargeCodeShopURL = strings.TrimSpace(c.Pricing.RechargeCodeShopURL)
+	if shop := c.Pricing.RechargeCodeShopURL; shop != "" {
+		u, err := url.Parse(shop)
+		if err != nil || len(shop) > 2048 || (u.Scheme != "https" && u.Scheme != "http") || u.Hostname() == "" || u.User != nil {
+			return errors.New("发卡网链接须为不含账号密码的完整 HTTP 或 HTTPS 地址")
+		}
+	}
 	w := &c.Wallet
 	if w.Network != "mainnet" && w.Network != "shasta" && w.Network != "nile" {
 		return errors.New("请选择 mainnet、shasta 或 nile 网络")
@@ -119,6 +126,7 @@ func (s *Service) putSettings(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		Settings Settings `json:"settings"`
 		Password string   `json:"password"`
+		Section  string   `json:"section"`
 	}
 	if e := decode(w, r, &in); e != nil {
 		fail(w, 400, e.Error())
@@ -128,15 +136,11 @@ func (s *Service) putSettings(w http.ResponseWriter, r *http.Request) {
 		fail(w, 403, "请填写当前超级管理员密码")
 		return
 	}
-	if e := validateSettings(&in.Settings); e != nil {
+	if e := s.saveSettings(r, in.Settings, in.Section); e != nil {
 		fail(w, 400, e.Error())
 		return
 	}
-	if e := s.saveSettings(r, in.Settings); e != nil {
-		fail(w, 400, e.Error())
-		return
-	}
-	s.audit(r.Context(), "settings.update", in.Settings.Mode)
+	s.audit(r.Context(), "settings.update", in.Section)
 	cfg, e := s.Settings(r.Context(), false)
 	if e != nil {
 		s.dbError(w, e)
@@ -144,7 +148,56 @@ func (s *Service) putSettings(w http.ResponseWriter, r *http.Request) {
 	}
 	jsonReply(w, 200, cfg)
 }
-func (s *Service) saveSettings(r *http.Request, c Settings) error {
+
+// mergeSettings keeps independent pages from overwriting other sections with a
+// stale snapshot. The caller holds the settings row lock until the save commits.
+func mergeSettings(old, incoming Settings, section string) (Settings, error) {
+	switch section {
+	case "": // Preserve the original full-settings API for existing clients.
+		old = incoming
+	case "access":
+		old.Mode = incoming.Mode
+		old.FrontendEnabled = incoming.FrontendEnabled
+		old.RegistrationEnabled = incoming.RegistrationEnabled
+		old.EmailVerification = incoming.EmailVerification
+	case "mail":
+		old.Mail = incoming.Mail
+	case "pricing":
+		old.Pricing.Enabled = incoming.Pricing.Enabled
+		old.Pricing.PerRunMicro = incoming.Pricing.PerRunMicro
+		old.Pricing.PerKMMicro = incoming.Pricing.PerKMMicro
+		old.Pricing.PlanPackageMicro = incoming.Pricing.PlanPackageMicro
+		old.Pricing.RechargeCodeShopURL = incoming.Pricing.RechargeCodeShopURL
+	case "wallet", "recharge":
+		if section == "recharge" {
+			old.Pricing.RechargeCodeEnabled = incoming.Pricing.RechargeCodeEnabled
+		}
+		// Wallet setup and collection are saved independently as well.
+		old.Wallet.Enabled = incoming.Wallet.Enabled
+		old.Wallet.Network = incoming.Wallet.Network
+		old.Wallet.NodeURL = incoming.Wallet.NodeURL
+		old.Wallet.Contract = incoming.Wallet.Contract
+		old.Wallet.NodeAPIKey = incoming.Wallet.NodeAPIKey
+		old.Wallet.SeedHex = incoming.Wallet.SeedHex
+	case "collection":
+		old.Wallet.FeeeAPIKey = incoming.Wallet.FeeeAPIKey
+		old.Wallet.CollectionAddress = incoming.Wallet.CollectionAddress
+		old.Wallet.AutoCollect = incoming.Wallet.AutoCollect
+		old.Wallet.CollectCron = incoming.Wallet.CollectCron
+		old.Wallet.Timezone = incoming.Wallet.Timezone
+		old.Wallet.MinCollectMicro = incoming.Wallet.MinCollectMicro
+		old.Wallet.FeeLimitSun = incoming.Wallet.FeeLimitSun
+		old.Wallet.EnergyPriceSun = incoming.Wallet.EnergyPriceSun
+	default:
+		return Settings{}, errors.New("配置分类不正确")
+	}
+	if err := validateSettings(&old); err != nil {
+		return Settings{}, err
+	}
+	return old, nil
+}
+
+func (s *Service) saveSettings(r *http.Request, c Settings, section string) error {
 	tx, e := s.db.Begin(r.Context())
 	if e != nil {
 		return e
@@ -155,8 +208,12 @@ func (s *Service) saveSettings(r *http.Request, c Settings) error {
 	if e != nil {
 		return e
 	}
-	var old Settings
+	old := Defaults()
 	if e = json.Unmarshal(raw, &old); e != nil {
+		return e
+	}
+	c, e = mergeSettings(old, c, section)
+	if e != nil {
 		return e
 	}
 	var sealed map[string][]byte

@@ -3,7 +3,7 @@ export type PortalStatus={setup_required:boolean;mode:'personal'|'commercial';fr
 export type PortalSettings={
   mode:'personal'|'commercial';frontend_enabled:boolean;registration_enabled:boolean;email_verification:boolean
   mail:{protocol:'smtp'|'smtps'|'starttls';host:string;port:number;username:string;password?:string;password_configured:boolean;from:string}
-  pricing:{enabled:boolean;per_run_micro:number;per_km_micro:number;plan_package_micro:number}
+  pricing:{enabled:boolean;per_run_micro:number;per_km_micro:number;plan_package_micro:number;recharge_code_shop_url:string;recharge_code_enabled:boolean}
   wallet:{enabled:boolean;network:'mainnet'|'shasta'|'nile';node_url:string;contract:string;node_api_key?:string;node_api_key_configured:boolean;seed_hex?:string;seed_configured:boolean;feee_api_key?:string;feee_api_key_configured:boolean;collection_address:string;auto_collect:boolean;collect_cron:string;timezone:string;min_collect_micro:number;fee_limit_sun:number;energy_price_sun:number}
 }
 export type BillingSummary={user:PortalUser;pricing:PortalSettings['pricing'];ledger:{id:string;delta_micro:number;kind:string;reference:string;created_at:string}[];entitlements:{account_id:string;plan_id:string}[];job_modes:Record<string,string>;deposit_address:string;wallet_enabled:boolean;network:string;contract:string}
@@ -17,3 +17,6 @@ export async function portalRequest<T>(path:string,body?:unknown,method?:string)
   return data as T
 }
 export function money(micro:number){return (micro/1e6).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:6})}
+export function externalHTTPURL(value?:string){
+  try{const url=new URL(value?.trim()||'');return (url.protocol==='https:'||url.protocol==='http:')&&!url.username&&!url.password?url.href:''}catch{return ''}
+}

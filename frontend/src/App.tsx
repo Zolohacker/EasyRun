@@ -1,20 +1,24 @@
+import SearchSelect from './SearchSelect'
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import {
-  Activity, AreaChart, BarChart3, Bot, CalendarClock, Check, ChevronRight, CircleGauge, CloudCog, Cpu, Database,
-  Eye, EyeOff, Footprints, Gauge, ImagePlus, KeyRound, Layers3, ListRestart, LockKeyhole, Map as MapIcon, MapPin, Pencil, Play, Ruler,
+  Activity, AreaChart, BarChart3, Bot, CalendarClock, Check, ChevronRight, CircleGauge, CloudCog, Cpu, CreditCard, Database,
+  Eye, EyeOff, Footprints, Gauge, ImagePlus, KeyRound, Layers3, Link2, ListRestart, LockKeyhole, Map as MapIcon, MapPin, Pencil, Play, Ruler,
   Plus, RadioTower, RefreshCw, Route as RouteIcon, Save, ScanFace, Send, Server, Settings2, ShieldCheck, Sparkles,
   TimerReset, ToggleLeft, ToggleRight, Trash2, UsersRound, X,
 } from 'lucide-react'
 import { api } from './api'
 import AmapRouteViewport from './AmapRouteViewport'
-import { CommercialAdmin, WalletPage, PortraitsPage } from './PortalPages'
+import { WalletPage } from './PortalPages'
+import { BillingAdminPage, PortalSystemSettings, UsersAdminPage } from './AdminPages'
+import AccountFaceLinkPanel from './AccountFaceLinkPanel'
+import {ListViewport,Pagination,usePagination} from './Pagination'
 import { money, portalRequest, type BillingSummary, type PortalUser } from './portal'
 import type {
   Account, Area, Config, Execution, FaceDetectionResult, FaceProfile, Job, MapMetrics, Plan, Point,
   RemoteRecordData, RemoteRecordInspection, Route, Run, RunListItem, RunTimeWindow, Sample, SystemSettings as SystemSettingsData, TargetSelection,
 } from './types'
 
-type Tab = 'overview' | 'accounts' | 'route_test' | 'automation' | 'settings' | 'commerce' | 'wallet' | 'photos'
+type Tab = 'overview' | 'accounts' | 'route_test' | 'automation' | 'logs' | 'settings' | 'billing' | 'users' | 'wallet'
 
 export default function App({user,onLogout}:{user:PortalUser;onLogout:()=>Promise<void>}) {
   const customer=user.role==='customer'
@@ -67,13 +71,14 @@ export default function App({user,onLogout}:{user:PortalUser;onLogout:()=>Promis
 
   const page = {
     overview: <DashboardOverview customer={customer} accounts={accounts} plans={plans} areas={areas} jobs={jobs} executions={executions} runs={runs} metrics={metrics} config={config} onNavigate={setTab}/>,
-    accounts: <Accounts accounts={accounts} notify={notify} onRefresh={refresh}/>,
+    accounts: <Accounts accounts={accounts} user={user} notify={notify} onRefresh={refresh}/>,
     route_test: <RouteTest accounts={accounts} plans={plans} areas={areas} runs={runs} metrics={metrics} config={config} notify={notify} onRefresh={refresh}/>,
     automation: <Automation jobs={jobs} accounts={accounts} plans={plans} areas={areas} executions={executions} config={config} customer={customer} notify={notify} onRefresh={refresh}/>,
-    settings: <SystemSettingsPage config={config} notify={notify} onRefresh={refresh}/>,
-    commerce: <CommercialAdmin user={user} notify={notify}/>,
+    logs: <ExecutionLogs accounts={accounts} plans={plans} jobs={jobs} notify={notify}/>,
+    settings: <SystemSettingsPage config={config} user={user} notify={notify} onRefresh={refresh}/>,
+    billing: <BillingAdminPage user={user} notify={notify}/>,
+    users: <UsersAdminPage user={user} notify={notify}/>,
     wallet: <WalletPage accounts={accounts} plans={plans} jobs={jobs} notify={notify}/>,
-    photos: <PortraitsPage accounts={accounts} notify={notify} onRefresh={refresh}/>,
   }[tab]
 
   return <div className={`app-shell ${customer?'customer-shell':''}`}>
@@ -84,8 +89,8 @@ export default function App({user,onLogout}:{user:PortalUser;onLogout:()=>Promis
         <NavItem active={tab === 'accounts'} icon={<UsersRound/>} label={customer?'我的账号':'账号矩阵'} count={accounts.length} onClick={() => setTab('accounts')}/>
         {!customer&&<NavItem active={tab === 'route_test'} icon={<RouteIcon/>} label="路线测试" onClick={() => setTab('route_test')}/>}
         <NavItem active={tab === 'automation'} icon={<CalendarClock/>} label="自动任务" count={jobs.filter(job => job.enabled).length} onClick={() => setTab('automation')}/>
-        <NavItem active={tab === 'photos'} icon={<ImagePlus/>} label="人脸上传页" onClick={() => setTab('photos')}/>
-        {customer?<NavItem active={tab === 'wallet'} icon={<KeyRound/>} label="余额与计费" onClick={() => setTab('wallet')}/>:<><NavItem active={tab === 'settings'} icon={<Settings2/>} label="系统配置" onClick={() => setTab('settings')}/><NavItem active={tab === 'commerce'} icon={<ShieldCheck/>} label="客户与商业配置" onClick={() => setTab('commerce')}/></>}
+        <NavItem active={tab === 'logs'} icon={<ListRestart/>} label="执行日志" onClick={()=>setTab('logs')}/>
+        {customer?<NavItem active={tab === 'wallet'} icon={<KeyRound/>} label="余额与计费" onClick={() => setTab('wallet')}/>:<><NavItem active={tab === 'settings'} icon={<Settings2/>} label="系统配置" onClick={() => setTab('settings')}/><NavItem active={tab === 'billing'} icon={<CreditCard/>} label="计费管理" onClick={() => setTab('billing')}/><NavItem active={tab === 'users'} icon={<ShieldCheck/>} label="用户管理" onClick={() => setTab('users')}/></>}
       </nav>
       {!customer&&<div className="system-card">
         <SystemRow icon={<Database/>} label="PostgreSQL" live={config?.database_configured}/>
@@ -98,7 +103,7 @@ export default function App({user,onLogout}:{user:PortalUser;onLogout:()=>Promis
     </aside>
     <main className="main-stage">
       <header className="topbar">
-        <div><span className="overline">{customer?'YOUR RUNNING WORKSPACE':'MANAGEMENT & OPERATIONS'}</span><h1>{({overview:customer?'我的总览':'运行总览', accounts:customer?'我的账号':'账号矩阵', route_test:'路线测试', automation:'自动任务', settings:'系统配置',commerce:'客户与商业配置',wallet:'余额与计费',photos:'人脸上传页'} as const)[tab]}</h1></div>
+        <div><h1>{({overview:customer?'我的总览':'运行总览', accounts:customer?'我的账号':'账号矩阵', route_test:'路线测试', automation:'自动任务',logs:'执行日志', settings:'系统配置',billing:'计费管理',users:'用户管理',wallet:'余额与计费'} as const)[tab]}</h1></div>
         <button className="icon-button" onClick={() => void refresh()} title="刷新"><RefreshCw size={17} className={loading ? 'spin' : ''}/></button>
       </header>
       {page}
@@ -255,9 +260,9 @@ function RouteTest({accounts, plans, areas, runs, metrics, config, notify, onRef
       <div className="panel mission-panel">
         <div className="panel-heading"><div><span className="kicker">MISSION CONTROL</span><h2>运行编排与数据预检</h2></div><span className={`status-pill ${account?.session_configured ? 'ok' : 'warn'}`}>{account?.session_configured ? '会话就绪' : '账号待登录'}</span></div>
         <div className="selector-grid">
-          <Field label="运动账号"><select value={accountID} onChange={event => setAccountID(event.target.value)}><option value="">选择账号</option>{accounts.map(item => <option key={item.id} value={item.id}>{accountSelectorLabel(item)}</option>)}</select></Field>
-          <Field label="账号跑步计划"><select value={planID} onChange={event => setPlanID(event.target.value)}><option value="">选择账号内计划</option>{accountPlans.map(item => <option key={item.id} value={item.id}>{item.name} · {distanceRuleShort(item)}</option>)}</select></Field>
-          <Field label="账号校园区域"><select value={areaID} onChange={event => setAreaID(event.target.value)}><option value="">选择账号内区域</option>{accountAreas.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>
+          <Field label="运动账号"><SearchSelect value={accountID} onChange={event => setAccountID(event.target.value)}><option value="">选择账号</option>{accounts.map(item => <option key={item.id} value={item.id}>{accountSelectorLabel(item)}</option>)}</SearchSelect></Field>
+          <Field label="账号跑步计划"><SearchSelect value={planID} onChange={event => setPlanID(event.target.value)}><option value="">选择账号内计划</option>{accountPlans.map(item => <option key={item.id} value={item.id}>{item.name} · {distanceRuleShort(item)}</option>)}</SearchSelect></Field>
+          <Field label="账号校园区域"><SearchSelect value={areaID} onChange={event => setAreaID(event.target.value)}><option value="">选择账号内区域</option>{accountAreas.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</SearchSelect></Field>
         </div>
         {plan && <DistancePicker plan={plan} value={selectedDistanceM} onChange={chooseDistance}/>}
         <div className="mission-facts">
@@ -296,17 +301,48 @@ function RouteTest({accounts, plans, areas, runs, metrics, config, notify, onRef
   </div>
 }
 
-function Accounts({accounts, notify, onRefresh}: {accounts:Account[]; notify:(message:string)=>void; onRefresh:()=>Promise<void>}) {
+function Accounts({accounts,user,notify,onRefresh}: {accounts:Account[];user:PortalUser;notify:(message:string)=>void;onRefresh:()=>Promise<void>}) {
   const emptyForm = {login_name:'', password:'', note:'', fence_index:0, device_id:'', model_name:'Redmi|23013RK75C', system_version:'14'}
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState(emptyForm)
+  const [autoTask,setAutoTask]=useState(false)
   const [loginMode, setLoginMode] = useState<'password'|'sms'>('password')
   const [edit, setEdit] = useState<(Account & {password?:string})|null>(null)
   const [busy, setBusy] = useState('')
-  const [sms, setSMS] = useState<{kind:'existing'|'onboarding'; account:Account; password?:string; ticket:string; code:string; score:number}|null>(null)
+  const [sms, setSMS] = useState<{kind:'existing'|'onboarding'; account:Account; password?:string; ticket:string; code:string; score:number;autoTask?:boolean}|null>(null)
   const [reauth, setReauth] = useState<{account:Account; mode:'password'|'sms'; password:string; error:string}|null>(null)
   const [records, setRecords] = useState<{account:Account; data:RemoteRecordData; plans:Plan[]}|null>(null)
   const [faceSettings, setFaceSettings] = useState<{account:Account; profile:FaceProfile; version:string; detection?:FaceDetectionResult; detectionError?:string}|null>(null)
+  const [faceLinkAccount,setFaceLinkAccount]=useState<Account|null>(null)
+  const [owners,setOwners]=useState<PortalUser[]>([]),[ownerID,setOwnerID]=useState('')
+  const admin=user.role!=='customer'
+  useEffect(()=>{
+    if(!admin)return
+    let active=true
+    void portalRequest<PortalUser[]>('users').then(value=>{if(active)setOwners(value)}).catch(e=>{if(active)notify(e.message)})
+    return()=>{active=false}
+  },[admin,notify])
+  const filteredAccounts=accounts.filter(account=>!admin||!ownerID||(ownerID==='__unassigned__'?!account.owner_user_id:account.owner_user_id===ownerID))
+  const accountPages=usePagination(filteredAccounts,ownerID)
+  const ownerName=(id?:string)=>owners.find(owner=>owner.id===id)?.email||(id?`用户 ${id}`:'未分配用户')
+
+  const finishOnboarding=async(account:Account,createTask:boolean)=>{
+    let message='登录成功，账号已添加'
+    if(createTask){
+      try{
+        const [saved,localPlans,localAreas,existingJobs]=await Promise.all([api.account(account.id),api.plans(),api.areas(),api.jobs()])
+        const plan=localPlans.find(p=>p.id===saved.default_plan_id)||localPlans.find(p=>p.source_account_id===saved.id)
+        const area=localAreas.find(a=>a.id===saved.default_area_id)||localAreas.find(a=>a.source_account_id===saved.id)
+        if(existingJobs.some(job=>job.account_id===saved.id))message+='；已有任务，未重复创建'
+        else if(!plan||!area)message+='；尚无可用计划或区域，请同步后手动创建任务'
+        else{
+          await api.createJob({account_id:saved.id,plan_id:plan.id,area_id:area.id,target_distance_m:automationDefaultDistance(plan),daily_run_limit:defaultDailyLimit(plan),weekly_run_limit:defaultWeeklyLimit(plan),daily_distance_limit_m:defaultDailyDistanceLimit(plan),weekly_distance_limit_m:defaultWeeklyDistanceLimit(plan),schedule_mode:plan.rules?.time_windows?.length?'plan_random':'manual',manual_time:plan.rules?.time_windows?.length?'':'06:30',day_scope:plan.rules?.time_windows?.length?'':'every_day',cron_expr:'',timezone:'Asia/Shanghai',enabled:false})
+          message+='；自动任务已创建（暂停），请检查后启用'
+        }
+      }catch(e){message+=`；任务创建未完成：${(e as Error).message}`}
+    }
+    setOpen(false);setForm(emptyForm);setAutoTask(false);notify(message);await onRefresh()
+  }
 
   const add = async (event:FormEvent) => {
     event.preventDefault(); setBusy('add')
@@ -316,11 +352,11 @@ function Accounts({accounts, notify, onRefresh}: {accounts:Account[]; notify:(me
         ? await api.createAccount({...draft,password:form.password})
         : await api.requestOnboardSMS(draft)
       if (result.verification_required && result.challenge && result.draft) {
-        setSMS({kind:'onboarding',account:result.draft,password:loginMode==='password'?form.password:undefined,ticket:result.challenge.ticket,code:'',score:result.challenge.solver_score})
+        setSMS({kind:'onboarding',account:result.draft,password:loginMode==='password'?form.password:undefined,ticket:result.challenge.ticket,code:'',score:result.challenge.solver_score,autoTask})
         setOpen(false)
         notify(loginMode==='password'?'该账号需要短信验证，请输入验证码':'滑块已自动通过，请输入短信验证码')
       } else if (result.account) {
-        setOpen(false); setForm(emptyForm); notify('登录成功，账号已添加'); await onRefresh()
+        await finishOnboarding(result.account,autoTask)
       }
     } catch (error) { notify((error as Error).message) }
     finally { setBusy('') }
@@ -401,12 +437,13 @@ function Accounts({accounts, notify, onRefresh}: {accounts:Account[]; notify:(me
     event.preventDefault(); if (!sms) return; setBusy('verify-sms')
     try {
       if (sms.kind==='onboarding') {
-        await api.verifyOnboardSMS(sms.account,sms.code,sms.ticket,sms.password)
-        setForm(emptyForm)
+        const account=await api.verifyOnboardSMS(sms.account,sms.code,sms.ticket,sms.password)
+        await finishOnboarding(account,!!sms.autoTask)
       } else {
         await api.verifySMS(sms.account.id, sms.code, sms.ticket)
+        notify('短信登录成功');await onRefresh()
       }
-      setSMS(null); notify(sms.kind==='onboarding'?'验证通过，账号已添加':'短信登录成功'); await onRefresh()
+      setSMS(null)
     }
     catch (error) { notify((error as Error).message) }
     finally { setBusy('') }
@@ -511,15 +548,15 @@ function Accounts({accounts, notify, onRefresh}: {accounts:Account[]; notify:(me
   }
 
   return <div className="page-stack">
-    <section className="page-intro"><div><span className="kicker">MULTI-ACCOUNT ORCHESTRATION</span><h2>目标账号与会话管理</h2><p>账号密码、token 与 satoken 均以 AES-GCM 加密后保存；短信验证码由人工输入，滑块自动处理。</p></div><button className="button primary" onClick={() => setOpen(true)}><Plus size={17}/>添加账号</button></section>
+    <section className="page-toolbar"><button className="button primary" onClick={() => setOpen(true)}><Plus size={17}/>添加账号</button></section>
+    {admin&&<section className="panel account-owner-filter"><Field label="所属用户"><SearchSelect value={ownerID} onChange={e=>setOwnerID(e.target.value)}><option value="">全部用户</option>{owners.map(owner=><option key={owner.id} value={owner.id}>{owner.email} · {({superadmin:'超级管理员',admin:'管理员',customer:'客户'} as const)[owner.role]}</option>)}{accounts.some(account=>!account.owner_user_id)&&<option value="__unassigned__">未分配用户</option>}</SearchSelect></Field><div><strong>{filteredAccounts.length}<span> / {accounts.length} 个账号</span></strong><p>按平台用户筛选其绑定的跑步账号</p></div>{ownerID&&<button className="button subtle" onClick={()=>setOwnerID('')}>清除筛选</button>}</section>}
     <section className="panel account-list-panel">
-      {!!accounts.length && <div className="account-list-head"><span>绑定身份</span><span>学号</span><span>人脸</span><span>操作</span></div>}
-      <div className="account-list">{accounts.map(account => <article className={`account-list-row ${account.enabled ? '' : 'disabled'}`} key={account.id}>
-        <div className="account-identity"><div className="avatar">{accountInitials(account)}</div><div><strong>{accountDisplayName(account)}</strong><span>{accountSchoolName(account)} · {authLabel(account.auth_status)}</span>{account.auth_status==='expired'&&<small className="account-auth-expired">{account.auth_message||'登录状态已失效'}</small>}</div></div>
+      <ListViewport pagination={accountPages} className="account-list">{!!filteredAccounts.length && <div className="account-list-head"><span>绑定身份</span><span>学号</span><span>人脸</span><span>操作</span></div>}{accountPages.items.map(account => <article className={`account-list-row ${account.enabled ? '' : 'disabled'}`} key={account.id}>
+        <div className="account-identity"><div className="avatar">{accountInitials(account)}</div><div><strong>{accountDisplayName(account)}</strong><span>{accountSchoolName(account)} · {authLabel(account.auth_status)}</span>{admin&&<small className="account-owner-name" title={ownerName(account.owner_user_id)}>{ownerName(account.owner_user_id)}</small>}{account.auth_status==='expired'&&<small className="account-auth-expired">{account.auth_message||'登录状态已失效'}</small>}</div></div>
         <div className="account-student"><span>绑定学号</span><b>{accountStudentNumber(account)}</b></div>
         <button className="account-face-state" title="查看和设置账号人脸" onClick={() => void openFaceSettings(account)}>{account.face_base_configured ? <img src={api.faceImageURL(account.id,'base',account.face_synced_at || account.updated_at)} alt="绑定人脸底图"/> : <span className="face-placeholder"><ScanFace/></span>}<span><b>{account.face_custom_configured?'自定义人脸':account.face_base_configured?'自动使用底图':'待同步'}</b><small>{account.face_auth?'计划要求识别':account.face_enabled?'已绑定':'未启用'}</small></span></button>
-        <div className="account-row-actions">{(!account.session_configured||account.auth_status!=='authenticated')&&<button className="button primary" disabled={!!busy} onClick={() => void relogin(account)}><KeyRound size={14}/>{busy === account.id + ':login'||busy === account.id + ':sms' ? '登录中…' : account.auth_status==='expired'?'重新登录':'登录账号'}</button>}<button className="button subtle" disabled={!account.session_configured || account.auth_status!=='authenticated' || !!busy} onClick={() => void syncResources(account)}><RefreshCw size={14} className={busy === account.id + ':sync' ? 'spin' : ''}/>{busy === account.id + ':sync' ? '读取中…' : '读取账号资料'}</button><button className="button subtle" disabled={!account.session_configured || account.auth_status!=='authenticated' || !!busy} onClick={() => void loadRecords(account)}><ListRestart size={14}/>{busy === account.id + ':records' ? '读取中…' : '跑步记录'}</button><button className="mini-button" title="人脸设置" onClick={() => void openFaceSettings(account)}><ScanFace size={16}/></button><button className="mini-button" title="设备与登录配置" onClick={() => setEdit({...account, password:''})}><CloudCog size={16}/></button><button className="toggle" title={account.enabled ? '停用账号' : '启用账号'} disabled={!!busy} onClick={() => void toggle(account)}>{account.enabled ? <ToggleRight size={27}/> : <ToggleLeft size={27}/>}</button></div>
-      </article>)}{!accounts.length && <div className="empty-large"><UsersRound/><h3>添加首个目标账号</h3><p>录入账号与密码后，可自动处理滑块并保存登录会话。</p></div>}</div>
+        <div className="account-row-actions">{(!account.session_configured||account.auth_status!=='authenticated')&&<button className="button primary" disabled={!!busy} onClick={() => void relogin(account)}><KeyRound size={14}/>{busy === account.id + ':login'||busy === account.id + ':sms' ? '登录中…' : account.auth_status==='expired'?'重新登录':'登录账号'}</button>}<button className="button subtle" disabled={!account.session_configured||account.auth_status!=='authenticated'||!!busy} onClick={()=>void loadRecords(account)}><ListRestart size={14}/>跑步记录</button><button className="mini-button" title="人脸设置" aria-label="人脸设置" onClick={()=>void openFaceSettings(account)}><ScanFace size={16}/></button><SearchSelect className="account-more-select" aria-label="更多账号操作" defaultValue="" disabled={!!busy} onChange={event=>{const value=event.target.value;event.currentTarget.value='';if(value==='sync')void syncResources(account);if(value==='edit')setEdit({...account,password:''});if(value==='toggle')void toggle(account)}}><option value="" disabled>更多操作</option><option value="sync" disabled={!account.session_configured||account.auth_status!=='authenticated'}>读取账号资料</option><option value="edit">设备与登录配置</option><option value="toggle">{account.enabled?'停用账号':'启用账号'}</option></SearchSelect></div>
+      </article>)}{!filteredAccounts.length && <div className="empty-large"><UsersRound/><h3>{ownerID?'该用户暂无绑定账号':'添加首个目标账号'}</h3><p>{ownerID?'可以选择其他用户或清除筛选查看全部账号。':'录入账号与密码后，可自动处理滑块并保存登录会话。'}</p></div>}</ListViewport>
     </section>
 
     {open && <Modal title="添加目标账号" className="account-modal" onClose={() => setOpen(false)}>
@@ -530,14 +567,15 @@ function Accounts({accounts, notify, onRefresh}: {accounts:Account[]; notify:(me
           <Field label="登录账号 / 手机号"><input required autoComplete="username" value={form.login_name} onChange={event => setForm({...form, login_name:event.target.value})}/></Field>
           {loginMode==='password' && <Field label="账号密码"><input required type="password" autoComplete="new-password" value={form.password} onChange={event => setForm({...form, password:event.target.value})} placeholder="请输入账号密码"/></Field>}
         </div>
-        <section className="account-device-section">
-          <div className="account-device-head"><span><CloudCog/></span><div><strong>Android 设备身份</strong><small>Android ID 可手动填写；留空时自动生成，并随账号固定保存。</small></div></div>
+        <details className="account-device-section advanced-options" onInvalidCapture={event=>{event.currentTarget.open=true}}><summary><CloudCog size={17}/><span>高级选项 · 设备身份</span><small>不熟悉这些设置，建议保持默认</small></summary>
+          <p className="portal-hint">Android ID 可手动填写；留空时自动生成，并随账号固定保存。</p>
           <div className="account-device-grid">
             <Field label="Android ID"><input value={form.device_id} maxLength={16} pattern="[0-9a-fA-F]{16}" autoCapitalize="none" autoCorrect="off" spellCheck={false} onChange={event => setForm({...form, device_id:event.target.value.replace(/[^0-9a-fA-F]/g,'').slice(0,16)})} placeholder="留空自动生成"/></Field>
             <Field label="设备机型"><input value={form.model_name} onChange={event => setForm({...form, model_name:event.target.value})}/></Field>
             <Field label="Android 版本"><input value={form.system_version} onChange={event => setForm({...form, system_version:event.target.value})}/></Field>
           </div>
-        </section>
+        </details>
+        <label className="portal-toggle"><input type="checkbox" checked={autoTask} onChange={event=>setAutoTask(event.target.checked)}/><span>登录成功后自动添加任务（默认暂停，检查后启用）</span></label>
         <Field label="备注"><input value={form.note} onChange={event => setForm({...form, note:event.target.value})}/></Field>
         <button className="button primary wide" disabled={busy === 'add'} type="submit">{busy === 'add' ? (loginMode==='password'?'登录验证中…':'正在发送验证码…') : (loginMode==='password'?'登录并添加账号':'发送验证码')}</button>
       </form>
@@ -571,27 +609,30 @@ function Accounts({accounts, notify, onRefresh}: {accounts:Account[]; notify:(me
 
     {sms && <Modal title="输入短信验证码" onClose={closeSMS}><form className="form-stack" onSubmit={verifySMS}><div className="protocol-note"><Check size={17}/><div><strong>{sms.kind==='onboarding'?'验证通过后才会保存账号':'完成本次登录验证'}</strong><span>滑块已自动完成，求解置信度 {sms.score.toFixed(3)}，短信已发送至 {maskLogin(sms.account.login_name)}</span></div></div><Field label="短信验证码"><input required autoFocus inputMode="numeric" maxLength={8} value={sms.code} onChange={event => setSMS({...sms, code:event.target.value})} placeholder="请输入收到的验证码"/></Field><button className="button primary wide" disabled={busy === 'verify-sms'} type="submit">{busy === 'verify-sms' ? '验证中…' : '验证并完成登录'}</button></form></Modal>}
 
-    {faceSettings && <Modal title={`${accountDisplayName(faceSettings.account)} · 人脸设置`} onClose={() => setFaceSettings(null)} wide><div className="face-settings"><div className="face-explain"><ScanFace/><div><strong>{faceSettings.profile.custom_configured?'跑步时使用自定义人脸':'跑步时自动使用账号绑定底图'}</strong><span>起跑预检要求人脸时，平台按检查距离触发本地模型比对，通过后上传该帧；未设置自定义人脸会直接选用下方绑定底图。</span></div></div><div className="face-preview-grid"><FacePreview title="账号绑定底图" description="由 getUserFaceImg 自动读取并加密缓存" available={faceSettings.profile.base_configured} src={api.faceImageURL(faceSettings.account.id,'base',faceSettings.version)}/><FacePreview title="当前识别人脸" description={faceSettings.profile.custom_configured?'使用本地自定义图片':'未设置时自动回落到绑定底图'} available={faceSettings.profile.effective_source!=='none'} src={api.faceImageURL(faceSettings.account.id,'effective',faceSettings.version)}/></div><div className="face-facts"><div><span>识别开关</span><b>{faceSettings.profile.face_auth?'本计划要求':faceSettings.profile.face_enabled?'账号已启用':'当前未要求'}</b></div><div><span>比对阈值</span><b>{faceSettings.profile.similarity_value || 50}</b></div><div><span>识别模型</span><b>{faceSettings.profile.face_model_type===2?'LOCAL MNN':'APP ALIYUN'}</b></div><div><span>活体/人体</span><b>{faceSettings.profile.body_enabled?`启用 · ${faceSettings.profile.body_rate}`:'未启用'}</b></div></div>{faceSettings.profile.face_model_type===2 && <div className="face-api-notice"><RadioTower/><div><strong>当前使用端内同源模型包</strong><span>faceModelType=2 在本机执行检测、对齐、特征提取和余弦分数转换，不调用远程 CompareFace；单张检测图片直接作为候选帧，未执行动作活体流程。</span></div></div>}{faceSettings.detection && <div className={`face-detection-result ${faceSettings.detection.passed?'passed':'failed'}`}><div className="face-detection-icon">{faceSettings.detection.passed?<ShieldCheck/>:<X/>}</div><div><span>主动人脸检测</span><strong>{faceSettings.detection.passed?'识别通过':'识别未通过'}</strong><small>{faceSettings.detection.provider} · {faceSettings.detection.source==='custom'?'自定义人脸':'绑定底图'} · {faceSettings.detection.elapsed_ms} ms</small></div><div><span>相似度</span><strong>{faceSettings.detection.confidence.toFixed(2)}</strong><small>阈值 {faceSettings.detection.threshold}</small></div><div><span>Request ID</span><code>{faceSettings.detection.request_id || '—'}</code><small>{dateTime(faceSettings.detection.checked_at)}</small></div></div>}{faceSettings.detectionError && <div className="face-api-error"><X/><div><strong>人脸检测未执行</strong><span>{faceSettings.detectionError}</span></div></div>}<div className="face-actions"><button className="button primary" disabled={!faceSettings.account.session_configured || !faceSettings.profile.base_configured || faceSettings.profile.effective_source==='none' || !!busy} onClick={() => void checkFace()}><ScanFace/>{busy===faceSettings.account.id+':face-check'?'检测中…':'主动检测'}</button><button className="button subtle" disabled={!faceSettings.account.session_configured || !!busy} onClick={() => void refreshFace()}><RefreshCw className={busy===faceSettings.account.id+':face-sync'?'spin':''}/>{busy===faceSettings.account.id+':face-sync'?'读取中…':'重新读取绑定底图'}</button><label className={`button cyan ${busy?'disabled':''}`}><ImagePlus/>选择自定义人脸<input type="file" accept="image/jpeg,image/png" disabled={!!busy} onChange={event => { const file=event.target.files?.[0]; event.currentTarget.value=''; void uploadFace(file) }}/></label>{faceSettings.profile.custom_configured && <button className="button danger" disabled={!!busy} onClick={() => void clearFace()}><Trash2/>清除自定义并使用底图</button>}</div><p className="face-storage-note">faceModelType=2 使用 APK 提取的 MNN 模型包在进程内计算实际相似度，通过后仅上传检测帧；其他模型仍走 getToken(tokenType=1) → Facebody CompareFace。图片以 AES-GCM 加密保存在本机。</p></div></Modal>}
+    {faceSettings && <Modal title={`${accountDisplayName(faceSettings.account)} · 人脸设置`} onClose={() => setFaceSettings(null)} wide><div className="face-settings"><div className="face-explain"><ScanFace/><div><strong>{faceSettings.profile.custom_configured?'跑步时使用自定义人脸':'跑步时自动使用账号绑定底图'}</strong><span>起跑预检要求人脸时，平台按检查距离触发本地模型比对，通过后上传该帧；未设置自定义人脸会直接选用下方绑定底图。</span></div></div><div className="face-preview-grid"><FacePreview title="账号绑定底图" description="由 getUserFaceImg 自动读取并加密缓存" available={faceSettings.profile.base_configured} src={api.faceImageURL(faceSettings.account.id,'base',faceSettings.version)}/><FacePreview title="当前识别人脸" description={faceSettings.profile.custom_configured?'使用本地自定义图片':'未设置时自动回落到绑定底图'} available={faceSettings.profile.effective_source!=='none'} src={api.faceImageURL(faceSettings.account.id,'effective',faceSettings.version)}/></div><div className="face-facts"><div><span>识别开关</span><b>{faceSettings.profile.face_auth?'本计划要求':faceSettings.profile.face_enabled?'账号已启用':'当前未要求'}</b></div><div><span>比对阈值</span><b>{faceSettings.profile.similarity_value || 50}</b></div><div><span>识别模型</span><b>{faceSettings.profile.face_model_type===2?'LOCAL MNN':'APP ALIYUN'}</b></div><div><span>活体/人体</span><b>{faceSettings.profile.body_enabled?`启用 · ${faceSettings.profile.body_rate}`:'未启用'}</b></div></div>{faceSettings.profile.face_model_type===2 && <div className="face-api-notice"><RadioTower/><div><strong>当前使用端内同源模型包</strong><span>faceModelType=2 在本机执行检测、对齐、特征提取和余弦分数转换，不调用远程 CompareFace；单张检测图片直接作为候选帧，未执行动作活体流程。</span></div></div>}{faceSettings.detection && <div className={`face-detection-result ${faceSettings.detection.passed?'passed':'failed'}`}><div className="face-detection-icon">{faceSettings.detection.passed?<ShieldCheck/>:<X/>}</div><div><span>主动人脸检测</span><strong>{faceSettings.detection.passed?'识别通过':'识别未通过'}</strong><small>{faceSettings.detection.provider} · {faceSettings.detection.source==='custom'?'自定义人脸':'绑定底图'} · {faceSettings.detection.elapsed_ms} ms</small></div><div><span>相似度</span><strong>{faceSettings.detection.confidence.toFixed(2)}</strong><small>阈值 {faceSettings.detection.threshold}</small></div><div><span>Request ID</span><code>{faceSettings.detection.request_id || '—'}</code><small>{dateTime(faceSettings.detection.checked_at)}</small></div></div>}{faceSettings.detectionError && <div className="face-api-error"><X/><div><strong>人脸检测未执行</strong><span>{faceSettings.detectionError}</span></div></div>}<div className="face-actions"><button className="button cyan" onClick={()=>{setFaceLinkAccount(faceSettings.account);setFaceSettings(null)}}><Link2/>生成人脸修改链接</button><button className="button primary" disabled={!faceSettings.account.session_configured || !faceSettings.profile.base_configured || faceSettings.profile.effective_source==='none' || !!busy} onClick={() => void checkFace()}><ScanFace/>{busy===faceSettings.account.id+':face-check'?'检测中…':'主动检测'}</button><button className="button subtle" disabled={!faceSettings.account.session_configured || !!busy} onClick={() => void refreshFace()}><RefreshCw className={busy===faceSettings.account.id+':face-sync'?'spin':''}/>{busy===faceSettings.account.id+':face-sync'?'读取中…':'重新读取绑定底图'}</button><label className={`button cyan ${busy?'disabled':''}`}><ImagePlus/>选择自定义人脸<input type="file" accept="image/jpeg,image/png" disabled={!!busy} onChange={event => { const file=event.target.files?.[0]; event.currentTarget.value=''; void uploadFace(file) }}/></label>{faceSettings.profile.custom_configured && <button className="button danger" disabled={!!busy} onClick={() => void clearFace()}><Trash2/>清除自定义并使用底图</button>}</div><p className="face-storage-note">faceModelType=2 使用 APK 提取的 MNN 模型包在进程内计算实际相似度，通过后仅上传检测帧；其他模型仍走 getToken(tokenType=1) → Facebody CompareFace。图片以 AES-GCM 加密保存在本机。</p></div></Modal>}
+    {faceLinkAccount&&<Modal title={`${accountDisplayName(faceLinkAccount)} · 人脸修改链接`} onClose={()=>setFaceLinkAccount(null)}><AccountFaceLinkPanel key={faceLinkAccount.id} account={faceLinkAccount} notify={notify}/></Modal>}
 
     {records && <RecordsModal account={records.account} data={records.data} plans={records.plans} notify={notify} onClose={() => setRecords(null)}/>}
   </div>
 }
 
 function RecordsModal({account, data, plans, notify, onClose}: {account:Account; data:RemoteRecordData; plans:Plan[]; notify:(message:string)=>void; onClose:()=>void}) {
-  const items = extractRecords(data)
+  const [pageData,setPageData]=useState(data),[recordPage,setRecordPage]=useState(1),[recordPageSize,setRecordPageSize]=useState(20),[pageLoading,setPageLoading]=useState(false)
+  const items = extractRecords(pageData)
   const [selected, setSelected] = useState<Record<string,unknown>|null>(null)
   const [detail, setDetail] = useState<RemoteRecordData>(null)
   const [inspection, setInspection] = useState<RemoteRecordInspection|null>(null)
   const [detailBusy, setDetailBusy] = useState(false)
   const [detailError, setDetailError] = useState('')
   const [reasonByRecord, setReasonByRecord] = useState<Record<string,{loading:boolean; reasons:string[]}>>({})
+  const changeRecordPage=async(next:number,size=recordPageSize)=>{setPageLoading(true);try{setPageData(await api.accountRecords(account.id,next,size));setRecordPage(next);setRecordPageSize(size);setSelected(null);setDetail(null);setInspection(null)}catch(e){notify((e as Error).message)}finally{setPageLoading(false)}}
   const metrics = remoteRecordMetrics(detail, selected)
   const route = remoteRecordRoute(detail, selected)
   const detailObject = asRecord(detail)
   const selectedStatus = recordStatusInfo({...selected || {}, ...detailObject || {}})
   useEffect(() => {
     let cancelled=false
-    const invalidItems=extractRecords(data).filter(recordNeedsInvalidReason)
+    const invalidItems=extractRecords(pageData).filter(recordNeedsInvalidReason)
     const initial:Record<string,{loading:boolean; reasons:string[]}>={}
     for(const item of invalidItems){const code=recordCode(item);if(code)initial[code]={loading:true,reasons:[]}}
     setReasonByRecord(initial)
@@ -611,7 +652,7 @@ function RecordsModal({account, data, plans, notify, onClose}: {account:Account;
       }
     })()
     return () => {cancelled=true}
-  },[account.id,data])
+  },[account.id,pageData])
   const loadDetail = async (item:Record<string,unknown>) => {
     const code=recordCode(item)
     if (!code) return
@@ -623,7 +664,7 @@ function RecordsModal({account, data, plans, notify, onClose}: {account:Account;
   return <Modal title={`${accountDisplayName(account)} · 跑步记录`} onClose={onClose} wide>
     <section className="record-plan-progress"><div className="record-progress-head"><div><span className="kicker">PLAN COMPLETION</span><h3>跑步计划完成进度</h3></div><span>{plans.length} 个计划</span></div><div className="record-progress-grid">{plans.map(plan=><PlanProgressCard key={plan.id} plan={plan}/>)}{!plans.length&&<Empty text="该账号尚未返回跑步计划"/>}</div></section>
     <div className="records-workspace">
-      <div className="record-list-pane"><div className="table-scroll remote-records"><table><thead><tr><th>时间</th><th>距离</th><th>时长</th><th>状态与原因</th><th/></tr></thead><tbody>{items.map((item, index) => { const code=recordCode(item) || `#${index + 1}`; const active=recordCode(selected || {})===code; const status=recordStatusInfo(item); const reasonState=reasonByRecord[code]; return <tr key={code} role="button" tabIndex={0} aria-selected={active} className={active ? 'selected' : ''} onClick={() => void loadDetail(item)} onKeyDown={event => { if(event.key==='Enter' || event.key===' '){event.preventDefault();void loadDetail(item)} }}><td><b>{recordTime(item)}</b><small>{shortRecordCode(code)}</small></td><td>{recordDistance(item)}</td><td>{recordDuration(item)}</td><td className="record-status-cell"><span className={`record-status-text ${status.tone}`} title={status.description}>{status.label}</span>{recordNeedsInvalidReason(item) && <small className={reasonState?.loading?'loading':''}>{reasonState?.loading?'正在读取无效原因…':reasonState?.reasons.join('；') || '等待读取无效原因'}</small>}</td><td><ChevronRight size={15}/></td></tr>})}</tbody></table>{!items.length && <Empty text="服务端暂无阳光跑记录"/>}</div></div>
+      <div className="record-list-pane"><div className="table-scroll remote-records list-viewport"><table><thead><tr><th>时间</th><th>距离</th><th>时长</th><th>状态与原因</th><th/></tr></thead><tbody>{items.map((item, index) => { const code=recordCode(item) || `#${index + 1}`; const active=recordCode(selected || {})===code; const status=recordStatusInfo(item); const reasonState=reasonByRecord[code]; return <tr key={code} role="button" tabIndex={0} aria-selected={active} className={active ? 'selected' : ''} onClick={() => void loadDetail(item)} onKeyDown={event => { if(event.key==='Enter' || event.key===' '){event.preventDefault();void loadDetail(item)} }}><td><b>{recordTime(item)}</b><small>{shortRecordCode(code)}</small></td><td>{recordDistance(item)}</td><td>{recordDuration(item)}</td><td className="record-status-cell"><span className={`record-status-text ${status.tone}`} title={status.description}>{status.label}</span>{recordNeedsInvalidReason(item) && <small className={reasonState?.loading?'loading':''}>{reasonState?.loading?'正在读取无效原因…':reasonState?.reasons.join('；') || '等待读取无效原因'}</small>}</td><td><ChevronRight size={15}/></td></tr>})}</tbody></table>{!items.length && <Empty text="服务端暂无阳光跑记录"/>}</div><footer className="list-pagination"><span>第 {recordPage} 页 · 本页 {items.length} 条</span><SearchSelect aria-label="跑步记录每页条数" value={recordPageSize} disabled={pageLoading} onChange={event=>void changeRecordPage(1,Number(event.target.value))}>{[10,20,50].map(size=><option value={size} key={size}>{size} 条 / 页</option>)}</SearchSelect><div><button className="button subtle" disabled={pageLoading||recordPage===1} onClick={()=>void changeRecordPage(recordPage-1)}>上一页</button><button className="button subtle" disabled={pageLoading||items.length<recordPageSize} onClick={()=>void changeRecordPage(recordPage+1)}>下一页</button></div></footer></div>
       <div className="record-detail-pane">
         {!selected && <div className="record-detail-empty"><RouteIcon/><strong>选择一条跑步记录</strong><span>点击左侧记录查看步幅、步频、步数和完整路线。</span></div>}
         {selected && <>
@@ -724,7 +765,7 @@ function Catalog({accounts, plans, areas, notify, onRefresh}: {accounts:Account[
     finally { setBusy('') }
   }
   return <div className="page-stack">
-    <section className="page-intro"><div><span className="kicker">ACCOUNT RESOURCE MIRROR</span><h2>账号计划与校园区域</h2><p>这里不手工创建资源，所有计划和围栏都由当前账号通过目标应用接口读取。</p></div><div className="resource-toolbar"><select value={accountID} onChange={event => setAccountID(event.target.value)}><option value="">选择账号</option>{accounts.map(item => <option key={item.id} value={item.id}>{accountSelectorLabel(item)}</option>)}</select><button className="button primary" disabled={!account?.session_configured || !!busy} onClick={() => void sync()}><RefreshCw size={16} className={busy === 'sync' ? 'spin' : ''}/>{busy === 'sync' ? '读取中…' : '从账号重新读取'}</button></div></section>
+    <section className="page-toolbar"><div className="resource-toolbar"><SearchSelect value={accountID} onChange={event => setAccountID(event.target.value)}><option value="">选择账号</option>{accounts.map(item => <option key={item.id} value={item.id}>{accountSelectorLabel(item)}</option>)}</SearchSelect><button className="button primary" disabled={!account?.session_configured || !!busy} onClick={() => void sync()}><RefreshCw size={16} className={busy === 'sync' ? 'spin' : ''}/>{busy === 'sync' ? '读取中…' : '从账号重新读取'}</button></div></section>
     {!account?.session_configured && <div className="panel resource-hint"><LockKeyhole/><div><strong>先完成账号登录</strong><span>登录成功后会自动读取可用计划和学校围栏，也可在这里手动刷新。</span></div></div>}
     <section className="catalog-grid"><div><div className="section-label"><Activity/>账号跑步计划<b>{accountPlans.length}</b></div><div className="catalog-list">{accountPlans.map(item => { const selected=account?.default_plan_id === item.id; return <div className={`panel catalog-card ${selected ? 'selected-resource' : ''}`} key={item.id}><div className="catalog-icon"><Gauge/></div><div className="catalog-content"><h3>{item.name}</h3><p>{planAccountingDescription(item)}</p><div className="chip-row"><span>{planAccountingLabel(item)}</span><span>{distanceRule(item)}</span><span>{paceRule(item)}</span><span>{cadenceRule(item)}</span><span>{strideRule(item)}</span><span>{timingRule(item)}</span><span>{planQuotaRule(item)}</span><span>{planTimeRule(item)}</span>{selected && <span>当前选择</span>}</div></div><button className={`resource-select ${selected ? 'selected' : ''}`} disabled={selected || !!busy} onClick={() => void chooseDefault('plan', item.id)}>{busy === `plan:${item.id}` ? <RefreshCw className="spin"/> : <Check/>}<span>{selected ? '已选' : '设为默认'}</span></button></div>})}{!accountPlans.length && <Empty text="该账号尚未同步计划"/>}</div></div><div><div className="section-label"><MapIcon/>账号校园区域<b>{accountAreas.length}</b></div><div className="catalog-list">{accountAreas.map(item => { const selected=account?.default_area_id === item.id; return <div className={`panel catalog-card ${selected ? 'selected-resource' : ''}`} key={item.id}><div className="catalog-icon cyan"><MapPin/></div><div className="catalog-content"><h3>{item.name}</h3><p>围栏代码 {item.remote_code || '—'} · {item.center.lat.toFixed(6)}, {item.center.lng.toFixed(6)}</p><div className="chip-row"><span>{item.boundary?.length || 0} 围栏点</span><span>平台规划 {item.candidate_count} 条候选</span>{selected && <span>当前选择</span>}</div></div><button className={`resource-select ${selected ? 'selected' : ''}`} disabled={selected || !!busy} onClick={() => void chooseDefault('area', item.id)}>{busy === `area:${item.id}` ? <RefreshCw className="spin"/> : <Check/>}<span>{selected ? '已选' : '设为默认'}</span></button></div>})}{!accountAreas.length && <Empty text="该账号尚未同步校园区域"/>}</div></div></section>
   </div>
@@ -746,6 +787,7 @@ const emptyAutomationForm = ():AutomationForm => ({
 })
 
 function Automation({jobs, accounts, plans, areas, executions, config, customer, notify, onRefresh}: {jobs:Job[]; accounts:Account[]; plans:Plan[]; areas:Area[]; executions:Execution[]; config:Config|null; customer:boolean; notify:(message:string)=>void; onRefresh:()=>Promise<void>}) {
+  const jobPages=usePagination(jobs)
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<Job|null>(null)
   const [busy, setBusy] = useState('')
@@ -813,20 +855,19 @@ function Automation({jobs, accounts, plans, areas, executions, config, customer,
     finally { setBusy('') }
   }
   return <div className="page-stack">
-    <section className="page-intro"><div><span className="kicker">AUTOMATION FABRIC</span><h2>多账号自动任务</h2><p>自动识别计划考核方式：按公里数计划可选距离，按次数计划固定使用最低距离。</p></div><button className="button primary" onClick={openCreate}><Plus size={17}/>新建任务</button></section>
+    <section className="page-toolbar"><button className="button primary" onClick={openCreate}><Plus size={17}/>新建任务</button></section>
     <section className="automation-summary"><SummaryTile tone="green" icon={<CalendarClock/>} label="启用任务" value={jobs.filter(job => job.enabled).length}/><SummaryTile tone="cyan" icon={<Bot/>} label="工作线程" value={config?.automation.workers || 0}/><SummaryTile tone="violet" icon={<ListRestart/>} label="队列深度" value={config?.automation.queue_depth || 0}/><SummaryTile tone="amber" icon={<Check/>} label="成功执行" value={config?.automation.succeeded || 0}/></section>
-    <section className="panel jobs-panel"><div className="panel-heading"><div><span className="kicker">SCHEDULE MATRIX</span><h2>账号任务列表</h2></div><span className="count-badge">{jobs.length}</span></div><div className="job-list">{jobs.map(job => { const owner=accounts.find(item => item.id === job.account_id); const plan=plans.find(item => item.id === job.plan_id); return <div className="job-row" key={job.id}><div className={`job-state ${job.enabled ? 'active' : ''}`}><CalendarClock/></div><div className="job-title"><strong>{owner ? accountDisplayName(owner) : job.account_id}</strong><span>{owner ? accountStudentNumber(owner) : '账号已移除'}</span></div><div className="job-bind job-plan"><span>PLAN</span><b>{plan?.name || '—'}</b></div><div className="job-distance"><span>{isCountBasedPlan(plan)?'COUNT PLAN':'DISTANCE'}</span><b>{automationDistanceLabel(job,plan)}</b><small>{quotaLabel(job,plan)}</small></div><div className="job-bind job-area"><span>AREA</span><b>{areas.find(item => item.id === job.area_id)?.name || '—'}</b></div><div className="job-schedule"><code>{scheduleLabel(job)}</code><span>{job.next_run_at ? `${dateTimeInZone(job.next_run_at,job.timezone)} · ${job.timezone}` : '已暂停'}</span></div><div className="job-actions"><button className="mini-button" title="编辑任务" disabled={!!busy} onClick={() => openEdit(job)}><Pencil/></button><button className="mini-button" title="立即运行" disabled={!!busy} onClick={() => void runNow(job)}><Play/></button><button className={`mini-button ${job.enabled ? 'on' : ''}`} title="启停" disabled={!!busy} onClick={() => void toggle(job)}>{job.enabled ? <ToggleRight/> : <ToggleLeft/>}</button></div></div>})}{!jobs.length && <Empty text="暂无自动任务"/>}</div></section>
-    <section className="panel execution-panel"><div className="panel-heading"><div><span className="kicker">EXECUTION LOG</span><h2>执行流水</h2></div><span className="count-badge">{executions.length}</span></div><div className="table-scroll"><table><thead><tr><th>状态</th><th>计划</th><th>账号</th><th>开始时间</th><th>服务端记录</th><th>消息</th></tr></thead><tbody>{executions.slice(0,50).map(execution => { const owner=accounts.find(account => account.id === execution.account_id); const job=jobs.find(item=>item.id===execution.job_id); const plan=plans.find(item=>item.id===job?.plan_id); return <tr key={execution.id}><td><span className={`exec-status ${execution.status}`}>{executionStatusLabel(execution.status)}</span></td><td>{plan?.name || '计划已移除'}</td><td>{owner ? accountDisplayName(owner) : execution.account_id}</td><td>{dateTime(execution.started_at)}</td><td><b>{execution.remote_run_id || '—'}</b></td><td className="error-cell" title={execution.error}>{execution.error || '—'}</td></tr>})}</tbody></table>{!executions.length && <Empty text="暂无执行流水"/>}</div></section>
+    <section className="panel jobs-panel"><div className="panel-heading"><div><span className="kicker">SCHEDULE MATRIX</span><h2>账号任务列表</h2></div><span className="count-badge">{jobs.length}</span></div><ListViewport pagination={jobPages} className="job-list">{jobPages.items.map(job => { const owner=accounts.find(item => item.id === job.account_id); const plan=plans.find(item => item.id === job.plan_id); return <div className="job-row" key={job.id}><div className={`job-state ${job.enabled ? 'active' : ''}`}><CalendarClock/></div><div className="job-title"><strong>{owner ? accountDisplayName(owner) : job.account_id}</strong><span>{owner ? accountStudentNumber(owner) : '账号已移除'}</span></div><div className="job-bind job-plan"><span>PLAN</span><b>{plan?.name || '—'}</b></div><div className="job-distance"><span>{isCountBasedPlan(plan)?'COUNT PLAN':'DISTANCE'}</span><b>{automationDistanceLabel(job,plan)}</b><small>{quotaLabel(job,plan)}</small></div><div className="job-bind job-area"><span>AREA</span><b>{areas.find(item => item.id === job.area_id)?.name || '—'}</b></div><div className="job-schedule"><code>{scheduleLabel(job)}</code><span>{job.next_run_at ? `${dateTimeInZone(job.next_run_at,job.timezone)} · ${job.timezone}` : '已暂停'}</span></div><div className="job-actions"><button className="mini-button" title="编辑任务" disabled={!!busy} onClick={() => openEdit(job)}><Pencil/></button><button className="mini-button" title="立即运行" disabled={!!busy} onClick={() => void runNow(job)}><Play/></button><button className={`mini-button ${job.enabled ? 'on' : ''}`} title="启停" disabled={!!busy} onClick={() => void toggle(job)}>{job.enabled ? <ToggleRight/> : <ToggleLeft/>}</button></div></div>})}{!jobs.length && <Empty text="暂无自动任务"/>}</ListViewport></section>
     {open && <Modal title={editing?'编辑自动任务':'新建自动任务'} wide onClose={closeEditor}><form className="form-stack" onSubmit={submit}>
       <div className="form-grid">
-        <Field label="账号"><select required value={form.account} onChange={event => { const account=accounts.find(item=>item.id===event.target.value); const nextPlan=plans.find(item=>item.id===account?.default_plan_id); setForm({...form,account:event.target.value,plan:account?.default_plan_id||'',area:account?.default_area_id||'',distance:nextPlan?automationDefaultDistance(nextPlan):0,dailyLimit:defaultDailyLimit(nextPlan),weeklyLimit:defaultWeeklyLimit(nextPlan),dailyDistanceLimit:defaultDailyDistanceLimit(nextPlan),weeklyDistanceLimit:defaultWeeklyDistanceLimit(nextPlan),scheduleMode:nextPlan?.rules?.time_windows?.length?form.scheduleMode:'manual'}) }}><option value="">选择账号</option>{accounts.map(account => <option key={account.id} value={account.id}>{accountDisplayName(account)} · {authLabel(account.auth_status)}</option>)}</select></Field>
-        <Field label="账号跑步计划"><select required value={form.plan} onChange={event => { const nextPlan=formPlans.find(item=>item.id===event.target.value); setForm({...form,plan:event.target.value,distance:nextPlan?automationDefaultDistance(nextPlan):0,dailyLimit:defaultDailyLimit(nextPlan),weeklyLimit:defaultWeeklyLimit(nextPlan),dailyDistanceLimit:defaultDailyDistanceLimit(nextPlan),weeklyDistanceLimit:defaultWeeklyDistanceLimit(nextPlan),scheduleMode:nextPlan?.rules?.time_windows?.length?form.scheduleMode:'manual'}) }}><option value="">选择账号内计划</option>{formPlans.map(plan => <option key={plan.id} value={plan.id}>{plan.name} · {planAccountingLabel(plan)}</option>)}</select></Field>
-        <Field label="账号校园区域"><select required value={form.area} onChange={event => setForm({...form,area:event.target.value})}><option value="">选择账号内区域</option>{formAreas.map(area => <option key={area.id} value={area.id}>{area.name}</option>)}</select></Field>
+        <Field label="账号"><SearchSelect required value={form.account} onChange={event => { const account=accounts.find(item=>item.id===event.target.value); const nextPlan=plans.find(item=>item.id===account?.default_plan_id); setForm({...form,account:event.target.value,plan:account?.default_plan_id||'',area:account?.default_area_id||'',distance:nextPlan?automationDefaultDistance(nextPlan):0,dailyLimit:defaultDailyLimit(nextPlan),weeklyLimit:defaultWeeklyLimit(nextPlan),dailyDistanceLimit:defaultDailyDistanceLimit(nextPlan),weeklyDistanceLimit:defaultWeeklyDistanceLimit(nextPlan),scheduleMode:nextPlan?.rules?.time_windows?.length?form.scheduleMode:'manual'}) }}><option value="">选择账号</option>{accounts.map(account => <option key={account.id} value={account.id}>{accountSelectorLabel(account)}</option>)}</SearchSelect></Field>
+        <Field label="账号跑步计划"><SearchSelect required value={form.plan} onChange={event => { const nextPlan=formPlans.find(item=>item.id===event.target.value); setForm({...form,plan:event.target.value,distance:nextPlan?automationDefaultDistance(nextPlan):0,dailyLimit:defaultDailyLimit(nextPlan),weeklyLimit:defaultWeeklyLimit(nextPlan),dailyDistanceLimit:defaultDailyDistanceLimit(nextPlan),weeklyDistanceLimit:defaultWeeklyDistanceLimit(nextPlan),scheduleMode:nextPlan?.rules?.time_windows?.length?form.scheduleMode:'manual'}) }}><option value="">选择账号内计划</option>{formPlans.map(plan => <option key={plan.id} value={plan.id}>{plan.name} · {planAccountingLabel(plan)}</option>)}</SearchSelect></Field>
+        <Field label="账号校园区域"><SearchSelect required value={form.area} onChange={event => setForm({...form,area:event.target.value})}><option value="">选择账号内区域</option>{formAreas.map(area => <option key={area.id} value={area.id}>{area.name}</option>)}</SearchSelect></Field>
         <Field label="时区"><input required value={form.timezone} onChange={event => setForm({...form,timezone:event.target.value})}/></Field>
       </div>
       {formPlan && (countBasedPlan ? <CountPlanDistance plan={formPlan}/> : <DistancePicker title="任务跑步距离" plan={formPlan} value={form.distance} onChange={distance=>setForm({...form,distance})}/>)}
       {formPlan && <AutomationQuotaEditor plan={formPlan} dailyLimit={form.dailyLimit} weeklyLimit={form.weeklyLimit} dailyDistanceLimit={form.dailyDistanceLimit} weeklyDistanceLimit={form.weeklyDistanceLimit} onChange={(dailyLimit,weeklyLimit,dailyDistanceLimit,weeklyDistanceLimit)=>setForm({...form,dailyLimit,weeklyLimit,dailyDistanceLimit,weeklyDistanceLimit})}/>}
-      {customer&&billing&&<div className="schedule-editor"><Field label={billing.pricing.enabled?'本任务计费方式':'本任务计费方式（当前计费未开启）'}><select value={form.billingMode} onChange={e=>setForm({...form,billingMode:e.target.value})}><option value="per_run">按次 · {money(billing.pricing.per_run_micro)} USDT / 次</option><option value="per_km">按公里 · {money(billing.pricing.per_km_micro)} USDT / km</option><option value="plan_package">完整计划套餐（需在余额与计费中先购买）</option></select></Field><p className="portal-hint">余额 {money(billing.user.balance_micro)} USDT；成功提交结算，失败 / 跳过退还预扣。</p></div>}
+      {customer&&billing&&<div className="schedule-editor"><Field label={billing.pricing.enabled?'本任务计费方式':'本任务计费方式（当前计费未开启）'}><SearchSelect value={form.billingMode} onChange={e=>setForm({...form,billingMode:e.target.value})}><option value="per_run">按次 · {money(billing.pricing.per_run_micro)} USDT / 次</option><option value="per_km">按公里 · {money(billing.pricing.per_km_micro)} USDT / km</option><option value="plan_package">完整计划套餐（需在余额与计费中先购买）</option></SearchSelect></Field><p className="portal-hint">余额 {money(billing.user.balance_micro)} USDT；成功提交结算，失败 / 跳过退还预扣。</p></div>}
       <div className="schedule-editor">
         <div className="schedule-editor-head"><span>执行时间策略</span><small>随机时间在创建任务时写入数据库，服务重启不会变化</small></div>
         <div className="schedule-mode-grid">
@@ -835,7 +876,7 @@ function Automation({jobs, accounts, plans, areas, executions, config, customer,
         </div>
         {form.scheduleMode === 'manual' ? <div className="form-grid schedule-fields">
           <Field label="执行时间"><input required type="time" value={form.manualTime} onChange={event=>setForm({...form,manualTime:event.target.value})}/></Field>
-          <Field label="执行日"><select value={form.dayScope} onChange={event=>setForm({...form,dayScope:event.target.value as AutomationForm['dayScope']})}><option value="every_day">每天</option><option value="workday">工作日</option><option value="weekend">周末</option></select></Field>
+          <Field label="执行日"><SearchSelect value={form.dayScope} onChange={event=>setForm({...form,dayScope:event.target.value as AutomationForm['dayScope']})}><option value="every_day">每天</option><option value="workday">工作日</option><option value="weekend">周末</option></SearchSelect></Field>
         </div> : formPlan && <div className="plan-window-panel"><div><strong>服务器计划有效期</strong><span>{planDateRange(formPlan)}</span></div><div className="plan-window-chips">{formPlan.rules.time_windows?.map((window,index)=><span key={`${window.day_type}-${window.start_minute}-${index}`}>{timeWindowLabel(window)}</span>)}</div><small>会预留预计跑步与上传时长，在合规时段内抽取并持久化；执行前会重新统计当日与当周有效记录，超出设置限额时自动跳过。</small></div>}
       </div>
       <button className="button primary wide" disabled={busy === 'save' || (form.scheduleMode === 'plan_random' && !planHasWindows)} type="submit">{editing?'保存任务':'创建并启用'}</button>
@@ -843,10 +884,27 @@ function Automation({jobs, accounts, plans, areas, executions, config, customer,
   </div>
 }
 
+function ExecutionLogs({accounts,plans,jobs,notify}:{accounts:Account[];plans:Plan[];jobs:Job[];notify:(message:string)=>void}){
+  const [page,setPage]=useState(1),[pageSize,setPageSize]=useState(10),[accountID,setAccountID]=useState(''),[status,setStatus]=useState(''),[revision,setRevision]=useState(0),[loading,setLoading]=useState(false)
+  const [data,setData]=useState<{items:Execution[];total:number}>({items:[],total:0})
+  useEffect(()=>{
+    const controller=new AbortController()
+    const load=async()=>{setLoading(true);try{const result=await api.executionPage({page,page_size:pageSize,account_id:accountID,status},controller.signal);if(!controller.signal.aborted){setData(result);if(result.page!==page)setPage(result.page)}}catch(e){if(!controller.signal.aborted)notify((e as Error).message)}finally{if(!controller.signal.aborted)setLoading(false)}}
+    void load();const timer=setInterval(()=>void load(),10000)
+    return()=>{controller.abort();clearInterval(timer)}
+  },[page,pageSize,accountID,status,revision,notify])
+  return <div className="page-stack"><section className="panel compact-filter-bar"><Field label="账号"><SearchSelect value={accountID} onChange={e=>{setAccountID(e.target.value);setPage(1)}}><option value="">全部账号</option>{accounts.map(account=><option key={account.id} value={account.id}>{accountSelectorLabel(account)}</option>)}</SearchSelect></Field><Field label="执行状态"><SearchSelect value={status} onChange={e=>{setStatus(e.target.value);setPage(1)}}><option value="">全部状态</option><option value="running">执行中</option><option value="succeeded">成功</option><option value="failed">失败</option><option value="skipped">已跳过</option></SearchSelect></Field><button className="button subtle" disabled={loading} onClick={()=>setRevision(v=>v+1)}><RefreshCw className={loading?'spin':''}/>刷新日志</button></section><section className="panel execution-logs-panel"><ListViewport pagination={{page,pageSize,total:data.total,setPage,setPageSize}} className="table-scroll"><table><thead><tr><th>开始时间</th><th>状态</th><th>账号</th><th>计划</th><th>服务端记录</th><th>消息</th></tr></thead><tbody>{data.items.map(execution=>{const owner=accounts.find(account=>account.id===execution.account_id),job=jobs.find(item=>item.id===execution.job_id),plan=plans.find(item=>item.id===job?.plan_id);return <tr key={execution.id}><td>{dateTime(execution.started_at)}</td><td><span className={`exec-status ${execution.status}`}>{executionStatusLabel(execution.status)}</span></td><td>{owner?accountSelectorLabel(owner):execution.account_id}</td><td>{plan?.name||'计划已移除'}</td><td>{execution.remote_run_id||'—'}</td><td className="execution-message" title={execution.error||''}>{execution.error||'—'}</td></tr>})}</tbody></table>{!data.items.length&&<Empty text={loading?'正在读取执行日志…':'暂无匹配的执行日志'}/>}</ListViewport></section></div>
+}
+
 type MapKeyDraft = {clientID:string;id:string;masked:string;apiKey:string;qps:number;show:boolean}
 const mapKeyDraft = (id='', masked='', qps=3):MapKeyDraft => ({clientID:id||`new-${Date.now()}-${Math.random()}`,id,masked,apiKey:'',qps,show:false})
 
-function SystemSettingsPage({config: _config, notify, onRefresh}: {config:Config|null; notify:(message:string)=>void; onRefresh:()=>Promise<void>}) {
+function SystemSettingsPage({config,user,notify,onRefresh}:{config:Config|null;user:PortalUser;notify:(message:string)=>void;onRefresh:()=>Promise<void>}){
+  const [section,setSection]=useState<'runtime'|'access'|'mail'>('runtime')
+  return <div className="page-stack"><div className="portal-page-tabs" role="tablist" aria-label="系统配置分类">{([['runtime','地图与执行器'],['access','使用模式与客户入口'],['mail','邮件服务器']] as const).map(([key,label])=><button type="button" role="tab" aria-selected={section===key} key={key} className={section===key?'active':''} onClick={()=>setSection(key)}>{label}</button>)}</div>{section==='runtime'?<RuntimeSettingsPage config={config} notify={notify} onRefresh={onRefresh}/>:<PortalSystemSettings key={section} section={section} user={user} notify={notify}/>}</div>
+}
+
+function RuntimeSettingsPage({config: _config, notify, onRefresh}: {config:Config|null; notify:(message:string)=>void; onRefresh:()=>Promise<void>}) {
   const [settings, setSettings] = useState<SystemSettingsData|null>(null)
   const [mapKeys, setMapKeys] = useState<MapKeyDraft[]>([])
   const [workerProcesses, setWorkerProcesses] = useState(_config?.automation.worker_processes || 2)
@@ -875,7 +933,7 @@ function SystemSettingsPage({config: _config, notify, onRefresh}: {config:Config
   const totalConcurrency=workerProcesses*workerConcurrency
   const totalMapQPS=mapKeys.reduce((sum,key)=>sum+(Number.isFinite(key.qps)?key.qps:0),0)
   return <div className="page-stack settings-page">
-    <section className="page-intro"><div><span className="kicker">RUNTIME CONTROL PLANE</span><h2>系统运行配置</h2><p>地图密钥池、独立请求节流和任务执行容量统一保存在 PostgreSQL，保存后无需重启即可生效。</p></div><span className={`status-pill ${settings?.map_api_key_configured?'ok':'warn'}`}>{settings?.map_api_key_configured?`${settings.map_api_keys.length} MAP KEYS READY`:'MAP KEY REQUIRED'}</span></section>
+    <section className="page-toolbar"><span className={`status-pill ${settings?.map_api_key_configured?'ok':'warn'}`}>{settings?.map_api_key_configured?`${settings.map_api_keys.length} MAP KEYS READY`:'MAP KEY REQUIRED'}</span></section>
     <form className="settings-grid" onSubmit={save}>
       <section className="panel settings-card map-keys-card">
         <div className="settings-card-head"><div className="settings-card-icon cyan"><RadioTower/></div><div><span className="kicker">AMAP KEY POOL</span><h2>高德地图密钥池</h2><p>每个 API Key 使用独立令牌桶和 QPS 上限；调度器自动选择当前有额度的 Key。</p></div></div>
@@ -977,7 +1035,7 @@ function accountDisplayName(account:Account) { const name=(account.name || '').t
 function accountStudentNumber(account:Account) { const value=(account.student_number || '').trim(); return value && !isOpaqueWireValue(value) ? value : '学号待同步' }
 function accountSchoolName(account:Account) { const value=(account.school_name || '').trim(); return value && !isOpaqueWireValue(value) ? value : '学校待同步' }
 function accountInitials(account:Account) { const value=accountDisplayName(account); return value==='姓名待同步' ? '账' : value.slice(0,2).toUpperCase() }
-function accountSelectorLabel(account:Account) { const student=accountStudentNumber(account); return `${accountDisplayName(account)} · ${student==='学号待同步' ? authLabel(account.auth_status) : student}` }
+function accountSelectorLabel(account:Account) { return `${accountDisplayName(account)} · ${account.login_name || accountStudentNumber(account)}` }
 function faceProfileFromAccount(account:Account):FaceProfile { return {account_id:account.id,face_enabled:account.face_enabled||0,face_auth:!!account.face_auth,similarity_value:account.face_similarity_value||50,face_time:account.face_time||0,body_enabled:!!account.face_body_enabled,body_rate:account.face_body_rate||0,face_model_type:account.face_model_type||1,base_configured:!!account.face_base_configured,custom_configured:!!account.face_custom_configured,effective_source:account.face_effective_source||'none',synced_at:account.face_synced_at} }
 function dayScopeLabel(value?:string) { return ({every_day:'每天',workday:'工作日',weekend:'周末'} as Record<string,string>)[value || ''] || '自定义' }
 function scheduleLabel(job:Job) {

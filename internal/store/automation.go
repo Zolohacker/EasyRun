@@ -151,6 +151,45 @@ FROM automation_executions WHERE ($2='' OR account_id IN(SELECT id FROM runner_a
 	return executions, rows.Err()
 }
 
+func (s *PostgresStore) ListExecutionPage(ctx context.Context, q platform.ExecutionQuery) (platform.ExecutionPage, error) {
+	if q.Page < 1 {
+		q.Page = 1
+	}
+	if q.PageSize < 1 || q.PageSize > 100 {
+		q.PageSize = 10
+	}
+	p := platform.ExecutionPage{Items: []platform.Execution{}, Page: q.Page, PageSize: q.PageSize}
+	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
+	if err != nil {
+		return p, err
+	}
+	defer tx.Rollback(ctx)
+	const filter = ` WHERE ($1='' OR account_id IN(SELECT id FROM runner_accounts WHERE owner_user_id=$1)) AND ($2='' OR account_id=$2) AND ($3='' OR status=$3)`
+	args := []any{ownerFilter(ctx), q.AccountID, q.Status}
+	if err = tx.QueryRow(ctx, `SELECT count(*) FROM automation_executions`+filter, args...).Scan(&p.Total); err != nil {
+		return p, err
+	}
+	maxPage := max(1, (p.Total+q.PageSize-1)/q.PageSize)
+	p.Page = min(p.Page, maxPage)
+	args = append(args, q.PageSize, (p.Page-1)*q.PageSize)
+	rows, err := tx.Query(ctx, `SELECT id,job_id,account_id,scheduled_for,started_at,finished_at,status,run_id,remote_run_id,error FROM automation_executions`+filter+` ORDER BY started_at DESC,id DESC LIMIT $4 OFFSET $5`, args...)
+	if err != nil {
+		return p, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var x platform.Execution
+		if err = rows.Scan(&x.ID, &x.JobID, &x.AccountID, &x.ScheduledFor, &x.StartedAt, &x.FinishedAt, &x.Status, &x.RunID, &x.RemoteRunID, &x.Error); err != nil {
+			return p, err
+		}
+		p.Items = append(p.Items, x)
+	}
+	if err = rows.Err(); err != nil {
+		return p, err
+	}
+	return p, tx.Commit(ctx)
+}
+
 func scanJob(row scanner) (platform.AutomationJob, error) {
 	var job platform.AutomationJob
 	if err := row.Scan(&job.ID, &job.AccountID, &job.PlanID, &job.AreaID, &job.TargetDistanceM, &job.DailyRunLimit, &job.WeeklyRunLimit, &job.DailyDistanceLimitM, &job.WeeklyDistanceLimitM, &job.ScheduleMode, &job.ManualTime, &job.DayScope, &job.CronExpr, &job.Timezone, &job.Enabled, &job.NextRunAt, &job.LastRunAt, &job.CreatedAt, &job.UpdatedAt); errors.Is(err, pgx.ErrNoRows) {

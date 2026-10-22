@@ -53,6 +53,7 @@ export const api = {
   updateJob: (value: Job) => request<Job>(`/api/v1/jobs/${value.id}`, {method:'PUT', body:JSON.stringify(value)}),
   runJob: (id: string) => request<{execution_id:string,status:string}>(`/api/v1/jobs/${id}/run`, {method:'POST'}),
   executions: () => list<Execution>('/api/v1/executions?limit=100'),
+  executionPage: (query:{page:number;page_size:number;account_id:string;status:string},signal?:AbortSignal) => request<{items:Execution[];total:number;page:number;page_size:number}>('/api/v1/executions?'+new URLSearchParams(Object.entries(query).map(([key,value])=>[key,String(value)])),{signal}),
   runs: () => list<RunListItem>('/api/v1/runs?limit=50'),
   planRoute: (body: object) => request<Route>('/api/v1/routes/plan', {method:'POST', body:JSON.stringify(body)}),
   simulate: (body: object) => request<Run>('/api/v1/runs/simulate', {method:'POST', body:JSON.stringify(body)}),

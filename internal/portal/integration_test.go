@@ -171,6 +171,155 @@ func TestSetupFromRemoteAndProxy(t *testing.T) {
 	}
 }
 
+func TestSettingsSectionIsolation(t *testing.T) {
+	s, _ := testService(t)
+	server := portalTestServer(s)
+	defer server.Close()
+	admin := newClient()
+	const password = "test-password-12345"
+	requestTest(t, admin, server.URL, "POST", "/api/v1/portal/setup", map[string]any{"email": "admin@example.test", "password": password, "mode": "commercial", "frontend_enabled": true}, 201)
+	put := func(section string, cfg Settings, want int) {
+		t.Helper()
+		requestTest(t, admin, server.URL, "PUT", "/api/v1/portal/settings", map[string]any{"section": section, "settings": cfg, "password": password}, want)
+	}
+	mail := Settings{Mail: MailConfig{Protocol: "starttls", Host: "smtp.example.test", Port: 587, From: "sender@example.test", Password: "fixture-mail-secret"}}
+	put("mail", mail, 200)
+	stale := Defaults()
+	stale.Pricing = Pricing{Enabled: true, PerRunMicro: 2 * MicroUSDT, RechargeCodeShopURL: "  https://cards.example.test/product  "}
+	put("pricing", stale, 200)
+	stale.Wallet.NodeURL = "https://node.example.test"
+	put("wallet", stale, 200)
+	stale.Wallet.CollectionAddress = MainnetUSDT
+	put("collection", stale, 200)
+	put("mail", mail, 200) // Saving another stale page must retain pricing and wallet.
+	cfg, err := s.Settings(context.Background(), true)
+	if err != nil || cfg.Mode != "commercial" || !cfg.FrontendEnabled || cfg.Mail.Password != mail.Mail.Password || cfg.Wallet.NodeURL != stale.Wallet.NodeURL || cfg.Wallet.CollectionAddress != MainnetUSDT || cfg.Pricing.PerRunMicro != 2*MicroUSDT || cfg.Pricing.RechargeCodeShopURL != "https://cards.example.test/product" {
+		t.Fatalf("section save lost another page's settings: mode=%s price=%d shop=%s err=%v", cfg.Mode, cfg.Pricing.PerRunMicro, cfg.Pricing.RechargeCodeShopURL, err)
+	}
+	stale.Pricing.RechargeCodeShopURL = "javascript:alert(1)"
+	put("pricing", stale, 400)
+	put("unknown", stale, 400)
+	customer := newClient()
+	requestTest(t, customer, server.URL, "POST", "/api/v1/portal/auth/register", map[string]string{"email": "customer@example.test", "password": password}, 201)
+	requestTest(t, customer, server.URL, "GET", "/api/v1/portal/settings", nil, 403)
+	requestTest(t, customer, server.URL, "GET", "/api/v1/portal/users", nil, 403)
+	var summary struct {
+		Pricing Pricing `json:"pricing"`
+	}
+	if err := json.Unmarshal(requestTest(t, customer, server.URL, "GET", "/api/v1/portal/billing", nil, 200), &summary); err != nil || summary.Pricing.RechargeCodeShopURL != cfg.Pricing.RechargeCodeShopURL {
+		t.Fatal("customer did not receive configured shop URL", err)
+	}
+	stale.Pricing.RechargeCodeShopURL = ""
+	put("pricing", stale, 200)
+	if err := json.Unmarshal(requestTest(t, customer, server.URL, "GET", "/api/v1/portal/billing", nil, 200), &summary); err != nil || summary.Pricing.RechargeCodeShopURL != "" {
+		t.Fatal("cleared shop URL still visible", err)
+	}
+}
+
+func TestRechargeMethodAvailability(t *testing.T) {
+	s, _ := testService(t)
+	server := portalTestServer(s)
+	defer server.Close()
+	admin, customer := newClient(), newClient()
+	const password = "test-password-12345"
+	requestTest(t, admin, server.URL, "POST", "/api/v1/portal/setup", map[string]any{"email": "admin@example.test", "password": password, "mode": "commercial", "frontend_enabled": true}, 201)
+	requestTest(t, customer, server.URL, "POST", "/api/v1/portal/auth/register", map[string]string{"email": "customer@example.test", "password": password}, 201)
+	var batch struct {
+		Codes []string `json:"codes"`
+	}
+	if err := json.Unmarshal(requestTest(t, admin, server.URL, "POST", "/api/v1/portal/codes", map[string]any{"count": 1, "amount_micro": MicroUSDT, "days": 1}, 201), &batch); err != nil || len(batch.Codes) != 1 {
+		t.Fatal("recharge code fixture failed", err)
+	}
+	cfg := Defaults()
+	cfg.Pricing.RechargeCodeEnabled = false
+	requestTest(t, admin, server.URL, "PUT", "/api/v1/portal/settings", map[string]any{"section": "recharge", "settings": cfg, "password": password}, 200)
+	stale := Defaults() // Another open page still thinks redemption is enabled.
+	requestTest(t, admin, server.URL, "PUT", "/api/v1/portal/settings", map[string]any{"section": "pricing", "settings": stale, "password": password}, 200)
+	var summary struct {
+		Pricing       Pricing `json:"pricing"`
+		WalletEnabled bool    `json:"wallet_enabled"`
+	}
+	if err := json.Unmarshal(requestTest(t, customer, server.URL, "GET", "/api/v1/portal/billing", nil, 200), &summary); err != nil || summary.Pricing.RechargeCodeEnabled || summary.WalletEnabled {
+		t.Fatal("disabled methods still advertised", err)
+	}
+	requestTest(t, customer, server.URL, "POST", "/api/v1/portal/redeem", map[string]string{"code": batch.Codes[0]}, 403)
+	requestTest(t, customer, server.URL, "POST", "/api/v1/portal/wallet/address", map[string]string{}, 400)
+	if userOf(t, customer, server.URL).BalanceMicro != 0 {
+		t.Fatal("disabled recharge mutated the balance")
+	}
+	cfg.Pricing.RechargeCodeEnabled = true
+	requestTest(t, admin, server.URL, "PUT", "/api/v1/portal/settings", map[string]any{"section": "recharge", "settings": cfg, "password": password}, 200)
+	requestTest(t, customer, server.URL, "POST", "/api/v1/portal/redeem", map[string]string{"code": batch.Codes[0]}, 200)
+	if userOf(t, customer, server.URL).BalanceMicro != MicroUSDT {
+		t.Fatal("code was consumed while disabled or not credited after enabling")
+	}
+}
+
+func TestExecutionPaginationIsolation(t *testing.T) {
+	s, db := testService(t)
+	ctx := context.Background()
+	for _, owner := range []string{"owner_a", "owner_b"} {
+		if _, err := db.Pool().Exec(ctx, `INSERT INTO portal_users(id,email,password_hash,role) VALUES($1,$2,''::bytea,'customer')`, owner, owner+"@example.test"); err != nil {
+			t.Fatal(err)
+		}
+		ownerCtx := platform.WithActor(ctx, platform.Actor{ID: owner, Role: "customer"})
+		account, err := s.store.CreateAccount(ownerCtx, platform.Account{ID: "account_" + owner, Name: owner})
+		if err != nil {
+			t.Fatal(err)
+		}
+		plan, err := s.store.CreatePlan(ownerCtx, platform.RunningPlan{ID: "plan_" + owner, SourceAccountID: account.ID, Name: "Fixture plan", TargetDistanceM: 3000})
+		if err != nil {
+			t.Fatal(err)
+		}
+		area, err := s.store.CreateArea(ownerCtx, platform.RunningArea{ID: "area_" + owner, SourceAccountID: account.ID, Name: "Fixture area", CandidateCount: 1})
+		if err != nil {
+			t.Fatal(err)
+		}
+		job, err := s.store.CreateJob(ownerCtx, platform.AutomationJob{ID: "job_" + owner, AccountID: account.ID, PlanID: plan.ID, AreaID: area.ID, Timezone: "Asia/Shanghai", ScheduleMode: "manual", DayScope: "every_day"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		n := 25
+		if owner == "owner_b" {
+			n = 7
+		}
+		for i := 0; i < n; i++ {
+			status := "succeeded"
+			if i%3 == 0 {
+				status = "failed"
+			}
+			tm := time.Now().Add(time.Duration(i) * time.Second)
+			if err := db.CreateExecution(ctx, platform.Execution{ID: fmt.Sprintf("exec_%s_%02d", owner, i), JobID: job.ID, AccountID: account.ID, ScheduledFor: tm, StartedAt: tm, Status: status}); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	pager := s.store.(platform.ExecutionPager)
+	aCtx := platform.WithActor(ctx, platform.Actor{ID: "owner_a", Role: "customer"})
+	p, err := pager.ListExecutionPage(aCtx, platform.ExecutionQuery{Page: 2, PageSize: 10})
+	if err != nil || p.Total != 25 || p.Page != 2 || len(p.Items) != 10 {
+		t.Fatalf("wrong customer page: %+v err=%v", p, err)
+	}
+	for _, item := range p.Items {
+		if item.AccountID != "account_owner_a" {
+			t.Fatal("execution from another tenant leaked")
+		}
+	}
+	p, err = pager.ListExecutionPage(aCtx, platform.ExecutionQuery{Page: 1, PageSize: 10, AccountID: "account_owner_b"})
+	if err != nil || p.Total != 0 || len(p.Items) != 0 {
+		t.Fatal("cross-tenant account filter exposed logs", err)
+	}
+	p, err = pager.ListExecutionPage(aCtx, platform.ExecutionQuery{Page: 999, PageSize: 10, Status: "failed"})
+	if err != nil || p.Total != 9 || p.Page != 1 || len(p.Items) != 9 {
+		t.Fatal("status filter or out-of-range page incorrect", err)
+	}
+	adminCtx := platform.WithActor(ctx, platform.Actor{ID: "root", Role: "superadmin"})
+	p, err = pager.ListExecutionPage(adminCtx, platform.ExecutionQuery{Page: 4, PageSize: 10})
+	if err != nil || p.Total != 32 || len(p.Items) != 2 {
+		t.Fatal("administrator pagination truncated history", err)
+	}
+}
+
 func TestPortalIntegration(t *testing.T) {
 	s, db := testService(t)
 	ctx := context.Background()

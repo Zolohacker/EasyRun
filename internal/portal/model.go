@@ -26,10 +26,12 @@ type MailConfig struct {
 	From               string `json:"from"`
 }
 type Pricing struct {
-	Enabled          bool  `json:"enabled"`
-	PerRunMicro      int64 `json:"per_run_micro"`
-	PerKMMicro       int64 `json:"per_km_micro"`
-	PlanPackageMicro int64 `json:"plan_package_micro"`
+	Enabled             bool   `json:"enabled"`
+	PerRunMicro         int64  `json:"per_run_micro"`
+	PerKMMicro          int64  `json:"per_km_micro"`
+	PlanPackageMicro    int64  `json:"plan_package_micro"`
+	RechargeCodeShopURL string `json:"recharge_code_shop_url"`
+	RechargeCodeEnabled bool   `json:"recharge_code_enabled"`
 }
 type WalletConfig struct {
 	Enabled              bool   `json:"enabled"`
@@ -61,7 +63,7 @@ type Settings struct {
 }
 
 func Defaults() Settings {
-	return Settings{Mode: "personal", Mail: MailConfig{Protocol: "starttls", Port: 587}, Wallet: WalletConfig{Network: "shasta", NodeURL: "https://api.shasta.trongrid.io", CollectCron: "0 3 * * *", Timezone: "Asia/Shanghai", MinCollectMicro: 5 * MicroUSDT, FeeLimitSun: 30_000_000, EnergyPriceSun: 100}}
+	return Settings{Mode: "personal", Mail: MailConfig{Protocol: "starttls", Port: 587}, Pricing: Pricing{RechargeCodeEnabled: true}, Wallet: WalletConfig{Network: "shasta", NodeURL: "https://api.shasta.trongrid.io", CollectCron: "0 3 * * *", Timezone: "Asia/Shanghai", MinCollectMicro: 5 * MicroUSDT, FeeLimitSun: 30_000_000, EnergyPriceSun: 100}}
 }
 
 type LedgerEntry struct {

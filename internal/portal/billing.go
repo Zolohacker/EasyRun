@@ -406,6 +406,15 @@ func (s *Service) listCodes(w http.ResponseWriter, r *http.Request) {
 	jsonReply(w, 200, out)
 }
 func (s *Service) redeem(w http.ResponseWriter, r *http.Request) {
+	cfg, err := s.Settings(r.Context(), false)
+	if err != nil {
+		s.dbError(w, err)
+		return
+	}
+	if !cfg.Pricing.RechargeCodeEnabled {
+		fail(w, 403, "充值码充值当前未开启")
+		return
+	}
 	if !s.allow("redeem:"+currentUser(r).ID, 12, 10*time.Minute) {
 		fail(w, 429, "兑换尝试过多，请稍后重试")
 		return

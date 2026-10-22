@@ -91,6 +91,22 @@ func (a *api) runJobNow(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *api) listExecutions(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Query().Has("page") {
+		pager, ok := a.store.(platform.ExecutionPager)
+		if !ok {
+			writeError(w, http.StatusNotImplemented, "pagination_unavailable", "当前存储不支持执行日志分页")
+			return
+		}
+		page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+		size, _ := strconv.Atoi(r.URL.Query().Get("page_size"))
+		result, err := pager.ListExecutionPage(r.Context(), platform.ExecutionQuery{Page: page, PageSize: size, AccountID: r.URL.Query().Get("account_id"), Status: r.URL.Query().Get("status")})
+		if err != nil {
+			a.storeError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, result)
+		return
+	}
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
 	items, err := a.store.ListExecutions(r.Context(), limit)
 	if err != nil {

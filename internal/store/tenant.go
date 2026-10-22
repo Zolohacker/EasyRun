@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"errors"
 	"github.com/Zolohacker/EasyRun/internal/activity"
 	"github.com/Zolohacker/EasyRun/internal/platform"
 )
@@ -230,6 +231,14 @@ func (s TenantStore) ListExecutions(ctx context.Context, limit int) ([]platform.
 		}
 	}
 	return out, e
+}
+func (s TenantStore) ListExecutionPage(ctx context.Context, q platform.ExecutionQuery) (platform.ExecutionPage, error) {
+	pager, ok := s.Store.(platform.ExecutionPager)
+	if !ok {
+		return platform.ExecutionPage{}, errors.New("execution pagination is not supported by this store")
+	}
+	// PostgreSQL applies the actor filter before count, ordering and pagination.
+	return pager.ListExecutionPage(ctx, q)
 }
 func (s TenantStore) Save(ctx context.Context, run activity.Run) error {
 	if !s.allowAccount(ctx, run.AccountID) {

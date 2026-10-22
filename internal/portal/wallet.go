@@ -48,7 +48,7 @@ func (s *Service) generateSeed(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	c.Wallet.SeedHex = hex.EncodeToString(seed)
-	if e = s.saveSettings(r, c); e != nil {
+	if e = s.saveSettings(r, c, "wallet"); e != nil {
 		fail(w, 400, e.Error())
 		return
 	}

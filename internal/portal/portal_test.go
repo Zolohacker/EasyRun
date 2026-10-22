@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/hex"
+	"encoding/json"
 	"math"
 	"net/http/httptest"
 	"strings"
@@ -105,6 +106,74 @@ func TestSettingsValidation(t *testing.T) {
 	cfg.Wallet.AutoCollect = true
 	if validateSettings(&cfg) == nil {
 		t.Fatal("unconfigured automatic collection accepted")
+	}
+}
+
+func TestRechargeCodeShopURLValidation(t *testing.T) {
+	for _, value := range []string{"", "https://cards.example.test/easyrun?ref=portal", "http://cards.example.test/products", "  https://cards.example.test/  "} {
+		cfg := Defaults()
+		cfg.Pricing.RechargeCodeShopURL = value
+		if err := validateSettings(&cfg); err != nil || cfg.Pricing.RechargeCodeShopURL != strings.TrimSpace(value) {
+			t.Fatalf("valid shop URL %q rejected or not normalized: %v", value, err)
+		}
+	}
+	for _, value := range []string{"javascript:alert(1)", "data:text/html,test", "//cards.example.test", "https://", "https://user:password@cards.example.test", "https://cards.example.test/\nheader", strings.Repeat("x", 2049)} {
+		cfg := Defaults()
+		cfg.Pricing.RechargeCodeShopURL = value
+		if validateSettings(&cfg) == nil {
+			t.Fatalf("invalid shop URL %q accepted", value)
+		}
+	}
+}
+
+func TestMergeSettingsSections(t *testing.T) {
+	old := Defaults()
+	old.Mode = "commercial"
+	old.Mail.Host = "smtp.current.example.test"
+	old.Pricing = Pricing{Enabled: true, PerRunMicro: MicroUSDT, RechargeCodeShopURL: "https://cards.example.test"}
+	old.Wallet.CollectionAddress = MainnetUSDT
+	stale := Defaults()
+	stale.Mail.Host = "smtp.new.example.test"
+	stale.Wallet.NodeURL = "https://node.new.example.test"
+	stale.Pricing.PerKMMicro = 2 * MicroUSDT
+	for _, section := range []string{"mail", "pricing", "wallet", "collection"} {
+		merged, err := mergeSettings(old, stale, section)
+		if err != nil {
+			t.Fatalf("%s: %v", section, err)
+		}
+		if merged.Mode != old.Mode {
+			t.Fatalf("%s overwrote usage mode", section)
+		}
+		if section != "mail" && merged.Mail != old.Mail {
+			t.Fatalf("%s overwrote mail settings", section)
+		}
+		if section != "pricing" && merged.Pricing != old.Pricing {
+			t.Fatalf("%s overwrote pricing", section)
+		}
+		if section != "collection" && merged.Wallet.CollectionAddress != old.Wallet.CollectionAddress {
+			t.Fatalf("%s overwrote collection destination", section)
+		}
+		if section != "wallet" && merged.Wallet.NodeURL != old.Wallet.NodeURL {
+			t.Fatalf("%s overwrote wallet node", section)
+		}
+	}
+	if _, err := mergeSettings(old, stale, "users"); err == nil {
+		t.Fatal("unknown settings section accepted")
+	}
+	merged, err := mergeSettings(old, stale, "pricing")
+	if err != nil || merged.Pricing.RechargeCodeEnabled != old.Pricing.RechargeCodeEnabled {
+		t.Fatal("pricing page overwrote recharge method switch", err)
+	}
+	merged, err = mergeSettings(old, stale, "recharge")
+	if err != nil || merged.Pricing.RechargeCodeEnabled != stale.Pricing.RechargeCodeEnabled || merged.Pricing.PerRunMicro != old.Pricing.PerRunMicro || merged.Pricing.RechargeCodeShopURL != old.Pricing.RechargeCodeShopURL || merged.Wallet.CollectionAddress != old.Wallet.CollectionAddress {
+		t.Fatal("recharge page overwrote pricing or collection settings", err)
+	}
+}
+
+func TestLegacyRechargeMethodDefault(t *testing.T) {
+	cfg := Defaults()
+	if err := json.Unmarshal([]byte(`{"mode":"commercial","pricing":{"per_run_micro":100000}}`), &cfg); err != nil || !cfg.Pricing.RechargeCodeEnabled || cfg.Wallet.Enabled {
+		t.Fatal("legacy code redemption must remain available without enabling chain deposits", err)
 	}
 }
 func TestConfirmedTransferLogValidation(t *testing.T) {
