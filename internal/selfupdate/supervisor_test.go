@@ -101,7 +101,10 @@ func TestSupervisorLiveUpgradeAndAutomaticRollback(t *testing.T) {
 	if testing.Short() {
 		t.Skip("builds standalone process fixtures")
 	}
-	dir := t.TempDir()
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
 	source := filepath.Join(dir, "fixture.go")
 	if err := os.WriteFile(source, []byte(fixtureProgram), 0600); err != nil {
 		t.Fatal(err)

@@ -13,7 +13,7 @@ EasyRun 自有源码采用根目录 MIT 许可证；本目录第三方文件保�
 运行库来自 [HyperInspire/InspireFace 官方发行页](https://github.com/HyperInspire/InspireFace/releases)：
 
 - Windows amd64：`v1.2.4 / inspireface-windows-x64-1.2.4.zip`。
-- Linux amd64：`v1.2.3 / inspireface-linux-x86-ubuntu18-1.2.3.zip`。
+- Linux amd64：`v1.2.3 / inspireface-linux-x86-manylinux2014-1.2.3.zip`。
 - Linux arm64：`v1.2.3 / inspireface-linux-aarch64-1.2.3.zip`。
 
 下载归档先按上游公布的 SHA-256 验证，再提取库文件；仓库保留库文件自身校验值。SDK 及其 MNN、Eigen、SQLite、yaml-cpp 等组成部分遵循各自上游许可与版权声明，原作者保留全部相关权利。参考 [InspireFace](https://github.com/HyperInspire/InspireFace)、[InsightFace](https://github.com/deepinsight/insightface)、[MNN](https://github.com/alibaba/MNN)、[Eigen](https://gitlab.com/libeigen/eigen)。

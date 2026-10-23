@@ -30,7 +30,13 @@ func TestBundledModelAndNativeRuntimeInitialize(t *testing.T) {
 			t.Fatal(err)
 		}
 		h := sha256.Sum256(raw)
-		if !strings.Contains(string(manifest), hex.EncodeToString(h[:])+"  "+f) {
+		found := false
+		for _, line := range strings.Split(strings.TrimSpace(string(manifest)), "\n") {
+			if strings.TrimSpace(line) == hex.EncodeToString(h[:])+"  "+f {
+				found = true
+			}
+		}
+		if !found {
 			t.Fatalf("bundled checksum differs: %s", f)
 		}
 	}
