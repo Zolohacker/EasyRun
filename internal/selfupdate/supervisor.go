@@ -116,7 +116,7 @@ func stopChild(cmd *exec.Cmd, done <-chan error) {
 	case <-time.After(10 * time.Second):
 	}
 }
-func verifyHealth(ctx context.Context, address, bootID string, info buildinfo.Info, done <-chan error) error {
+func verifyHealth(ctx context.Context, address, bootID string, info buildinfo.Info, done <-chan error, requireFace bool) error {
 	u, err := url.Parse(address)
 	if err != nil || u.Scheme != "http" || u.Path != "/healthz" {
 		return errors.New("更新健康检查地址不正确")
@@ -141,13 +141,14 @@ func verifyHealth(ctx context.Context, address, bootID string, info buildinfo.In
 				continue
 			}
 			var body struct {
-				Status string         `json:"status"`
-				BootID string         `json:"boot_id"`
-				Build  buildinfo.Info `json:"build"`
+				FaceReady bool           `json:"face_runtime_ready"`
+				Status    string         `json:"status"`
+				BootID    string         `json:"boot_id"`
+				Build     buildinfo.Info `json:"build"`
 			}
 			decodeErr := json.NewDecoder(io.LimitReader(r.Body, 64<<10)).Decode(&body)
 			_ = r.Body.Close()
-			if decodeErr == nil && r.StatusCode == 200 && body.Status == "ok" && body.BootID == bootID && body.Build.Version == info.Version && body.Build.Commit == info.Commit {
+			if decodeErr == nil && r.StatusCode == 200 && body.Status == "ok" && body.BootID == bootID && body.Build.Version == info.Version && body.Build.Commit == info.Commit && (!requireFace || body.FaceReady) {
 				return nil
 			}
 		}
@@ -263,7 +264,7 @@ func Supervise(ctx context.Context, target, address string) error {
 				cmd, done, boot, installErr = startServer(target)
 				if installErr == nil {
 					probe, cancel := context.WithTimeout(ctx, 60*time.Second)
-					installErr = verifyHealth(probe, address, boot, state.After, done)
+					installErr = verifyHealth(probe, address, boot, state.After, done, state.RequireFace)
 					cancel()
 				}
 			}

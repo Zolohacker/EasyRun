@@ -1,52 +1,16 @@
 [CmdletBinding()]
-param(
-    [string]$ApkPath,
-    [ValidateSet("Megatron", "Pikachu")]
-    [string]$ModelPack = "Megatron",
-    [string]$RuntimeDll
-)
-
+param([string]$ModelDirectory = (Join-Path $PSScriptRoot '..\models'))
 Set-StrictMode -Version Latest
-$ErrorActionPreference = "Stop"
-
-$ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
-if (-not $ApkPath) {
-    $ApkPath = Join-Path (Split-Path $ProjectRoot -Parent) "input\SAMPLE.apk"
+$ErrorActionPreference = 'Stop'
+$root = (Resolve-Path -LiteralPath $ModelDirectory).Path
+$manifest = [IO.File]::ReadAllLines((Join-Path $root 'SHA256SUMS'))
+foreach ($relative in @('Megatron','windows-amd64/libInspireFace.dll')) {
+    $entry = $manifest | Where-Object { $_.EndsWith('  '+$relative) } | Select-Object -First 1
+    if (-not $entry) { throw "Missing checksum for $relative" }
+    $path = Join-Path $root $relative
+    $actual = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($actual -ne $entry.Substring(0,64)) { throw "Model/runtime checksum mismatch: $relative" }
 }
-$ApkPath = (Resolve-Path -LiteralPath $ApkPath).Path
-$Destination = Join-Path $ProjectRoot "bin\face"
-New-Item -ItemType Directory -Path $Destination -Force | Out-Null
-
-Add-Type -AssemblyName System.IO.Compression.FileSystem
-$archive = [System.IO.Compression.ZipFile]::OpenRead($ApkPath)
-try {
-    $entryName = "assets/inspireface/$ModelPack"
-    $entry = $archive.GetEntry($entryName)
-    if ($null -eq $entry) {
-        throw "APK entry not found: $entryName"
-    }
-    $modelPath = Join-Path $Destination $ModelPack
-    $input = $entry.Open()
-    try {
-        $output = [System.IO.File]::Create($modelPath)
-        try { $input.CopyTo($output) } finally { $output.Dispose() }
-    } finally {
-        $input.Dispose()
-    }
-} finally {
-    $archive.Dispose()
-}
-
-$dllPath = Join-Path $Destination "libInspireFace.dll"
-if ($RuntimeDll) {
-    $resolvedDll = (Resolve-Path -LiteralPath $RuntimeDll).Path
-    Copy-Item -LiteralPath $resolvedDll -Destination $dllPath -Force
-}
-if (-not (Test-Path -LiteralPath $dllPath)) {
-    throw "A Windows x64 runtime DLL is required. Pass -RuntimeDll <path>."
-}
-
-Write-Host "Local face runtime ready:"
-Write-Host "  FACE_ENGINE_LIBRARY_PATH=$dllPath"
-Write-Host "  FACE_MODEL_PACK_PATH=$(Join-Path $Destination $ModelPack)"
-Write-Host "  FACE_DETECT_PIXEL_SIZE=320"
+Write-Host 'Bundled model and Windows runtime checksums verified.'
+Write-Host 'Start EasyRun normally: model paths are discovered automatically.'
+Write-Host 'Windows native SDK requires Microsoft Visual C++ 2022 x64 runtime.'

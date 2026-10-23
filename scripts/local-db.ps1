@@ -185,18 +185,15 @@ function Stop-Database {
 function Write-AppEnvironment {
     param([Parameter(Mandatory = $true)][string]$AppPassword)
 
-    $masterKey = Get-EnvValue -Path $AppEnvFile -Name "ACCOUNT_MASTER_KEY"
-    if (-not $masterKey) { $masterKey = New-RandomBase64 }
-
     $values = [ordered]@{
         HTTP_ADDR                   = "127.0.0.1:8080"
+        EASYRUN_DATA_DIR            = "data"
         DATABASE_URL                = "postgres://${AppUser}:${AppPassword}@${HostAddress}:${Port}/${DatabaseName}?sslmode=disable"
         DATABASE_MAX_CONNS          = "12"
         DATABASE_MIN_CONNS          = "2"
         DATABASE_CONNECT_TIMEOUT    = "5s"
         MAP_API_BASE_URL            = "https://restapi.amap.com"
         MAP_API_PATH                = "/v3/direction/walking"
-        MAP_API_KEY                 = ""
         MAP_API_TIMEOUT             = "8s"
         MAP_API_QPS                 = "3"
         MAP_API_BURST               = "2"
@@ -207,7 +204,6 @@ function Write-AppEnvironment {
         AUTOMATION_WORKERS          = "2"
         AUTOMATION_POLL_INTERVAL    = "10s"
         AUTOMATION_RUN_TIMEOUT      = "90m"
-        ACCOUNT_MASTER_KEY          = $masterKey
         PROTOCOL_BASE_URL           = "https://api.huachenjie.com/run-front"
         PROTOCOL_WEB_BASE_URL       = "https://mh5.huachenjie.com"
         PROTOCOL_ENVIRONMENT        = "9"
@@ -223,7 +219,7 @@ function Write-AppEnvironment {
             $separator = $trimmed.IndexOf("=")
             $key = $trimmed.Substring(0, $separator).Trim()
             $value = $trimmed.Substring($separator + 1).Trim()
-            if ($key -and $key -ne "DATABASE_URL") {
+            if ($key -and $key -notin @("DATABASE_URL", "MAP_API_KEY")) {
                 $values[$key] = $value
             }
         }

@@ -79,6 +79,14 @@ func main() {
 		os.Exit(2)
 	}
 	defer runStore.Close()
+	keyCtx, keyCancel := context.WithTimeout(runCtx, cfg.DatabaseTimeout)
+	master, _, err := securestore.LoadMasterKey(cfg.DataDir, cfg.AccountMasterKey, func() (bool, error) { return runStore.HasEncryptedSecrets(keyCtx) })
+	keyCancel()
+	if err != nil {
+		logger.Error("initialize persisted master key", "error", err)
+		os.Exit(2)
+	}
+	cfg.AccountMasterKey = master
 	vault, err := securestore.New(cfg.AccountMasterKey)
 	if err != nil {
 		logger.Error("initialize account credential vault", "error", err)
@@ -86,17 +94,8 @@ func main() {
 	}
 	runtimeSettings, err := runStore.GetSystemSettings(startupCtx)
 	if errors.Is(err, store.ErrNotFound) {
-		var initialKeys []platform.MapAPIKey
-		if cfg.MapAPIKey != "" {
-			mapKeyCipher, encryptErr := vault.Encrypt([]byte(cfg.MapAPIKey), platform.SystemSettingsMapKeyAAD)
-			if encryptErr != nil {
-				logger.Error("encrypt initial map API key", "error", encryptErr)
-				os.Exit(2)
-			}
-			initialKeys = []platform.MapAPIKey{{ID: "mapkey_primary", KeyCipher: mapKeyCipher, QPS: cfg.MapQPS}}
-		}
 		runtimeSettings, err = runStore.UpdateSystemSettings(startupCtx, platform.SystemSettings{
-			MapAPIKeys:      initialKeys,
+			MapAPIKeys:      []platform.MapAPIKey{},
 			WorkerProcesses: cfg.AutomationWorkers, WorkerConcurrency: cfg.AutomationWorkerConcurrency,
 		})
 	}
@@ -153,13 +152,17 @@ func main() {
 			DetectPixelSize: cfg.FaceDetectPixelSize,
 		})
 		if faceErr != nil {
-			logger.Error("initialize local face engine", "error", faceErr)
-			os.Exit(2)
+			cfg.FaceStatus = faceErr.Error()
+			logger.Warn("local face engine is not ready", "error", faceErr)
+		} else {
+			defer localFace.Close()
+			protocolClient.SetFaceAnalyzer(localFace)
+			cfg.FaceReady = true
+			cfg.FaceStatus = "随附模型与本地推理运行库已就绪"
+			logger.Info("local face engine ready", "provider", localFace.Name(), "detect_pixel_size", cfg.FaceDetectPixelSize)
 		}
-		defer localFace.Close()
-		protocolClient.SetFaceAnalyzer(localFace)
-		logger.Info("local face engine ready", "provider", localFace.Name(), "detect_pixel_size", cfg.FaceDetectPixelSize)
 	} else {
+		cfg.FaceStatus = "未发现对应系统的随附模型或推理运行库，请检查完整发行包"
 		logger.Warn("local face engine is not configured; faceModelType=2 checks will report an initialization error")
 	}
 	mapClient := mapapi.NewClient(mapapi.Options{
@@ -211,7 +214,8 @@ func main() {
 	})
 	updateCtx, updateCancel := context.WithTimeout(runCtx, cfg.DatabaseTimeout)
 	platformUpdates, err := selfupdate.New(updateCtx, selfupdate.Options{
-		DB: runStore.Pool(), Vault: vault, Guard: portalService,
+		FaceReady: cfg.FaceReady,
+		DB:        runStore.Pool(), Guard: portalService,
 		Busy:     func() bool { v := scheduler.Stats(); return v.Active > 0 || v.QueueDepth > 0 },
 		Shutdown: func() { go func() { time.Sleep(time.Second); stop() }() },
 	})

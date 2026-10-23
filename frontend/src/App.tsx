@@ -167,6 +167,7 @@ function DashboardOverview({accounts, plans, areas, jobs, executions, runs, metr
   const recentExecutions=executions.slice(0,8)
   const systemReady=[config?.database_configured,config?.map_api_configured,config?.protocol_configured].filter(Boolean).length
   return <div className="page-stack overview-page">
+    {!customer&&config&&!config.map_api_configured&&<section className="panel first-run-map-notice" role="status"><div className="first-run-map-icon"><KeyRound/></div><div><h2>完成地图配置，即可开始规划</h2><p>高德地图 API Key 统一在系统配置中管理，无需填写环境变量。请添加 Web 服务 Key，并设置每个 Key 的 QPS。</p></div><button className="button cyan" onClick={()=>onNavigate('settings')}><Settings2/>前往配置</button></section>}
     <section className="panel overview-command">
       <div className="overview-command-copy">
         <h2>{customer?'今天的计划，一目了然':'自动运行状态一屏掌握'}</h2>
@@ -1008,6 +1009,7 @@ function RuntimeSettingsPage({config: _config, notify, onRefresh}: {config:Confi
   const totalConcurrency=workerProcesses*workerConcurrency
   const totalMapQPS=mapKeys.reduce((sum,key)=>sum+(Number.isFinite(key.qps)?key.qps:0),0)
   return <div className="page-stack settings-page">
+    {_config?.face_runtime&&<section className="panel face-runtime-summary"><div><ScanFace/><h2>本地人脸推理</h2></div><span className={`status-pill ${_config.face_runtime.ready?'ok':'warn'}`}>{_config.face_runtime.ready?'已就绪':'待检查'}</span><p>{_config.face_runtime.status}</p><small>随附 {_config.face_runtime.model} 模型与 Windows / Linux 运行库，启动自动匹配，无需填写模型路径。</small></section>}
     <form className="settings-grid" onSubmit={save}>
       <section className="panel settings-card map-keys-card">
         <div className="settings-card-head"><div className="settings-card-icon cyan"><RadioTower/></div><div><h2>高德地图密钥池</h2><p>每个 Key 独立限流，调度器公平分配请求。</p></div><span className={`status-pill ${settings?.map_api_key_configured?'ok':'warn'}`}>{settings?settings.map_api_key_configured?`${settings.map_api_keys.length} 个已保存`:'尚未配置':'读取中…'}</span></div>

@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/Zolohacker/EasyRun/internal/protocol"
@@ -21,7 +20,7 @@ type updateChecker struct{ err error }
 func (c *updateChecker) CheckAppUpdate(context.Context, protocol.Device) (protocol.AppUpdate, error) {
 	return protocol.AppUpdate{HaveUpdate: true, ForceUpdate: true, NewVersion: "99.0.0"}, c.err
 }
-func TestUpdatePermissionsEncryptedSettingsAndPersistedMandatoryGate(t *testing.T) {
+func TestPublicUpdateSettingsPermissionsAndPersistedMandatoryGate(t *testing.T) {
 	s, db := testService(t)
 	ctx := context.Background()
 	checker := &updateChecker{}
@@ -34,7 +33,11 @@ func TestUpdatePermissionsEncryptedSettingsAndPersistedMandatoryGate(t *testing.
 	if err = os.WriteFile(exe, []byte("fixture target"), 0755); err != nil {
 		t.Fatal(err)
 	}
-	s.PlatformUpdates, err = selfupdate.New(ctx, selfupdate.Options{DB: db.Pool(), Vault: s.vault, Guard: g, Executable: exe})
+	_, err = s.db.Exec(ctx, `CREATE TABLE platform_update_settings(id smallint PRIMARY KEY,auto_install boolean NOT NULL DEFAULT false,token_cipher bytea);INSERT INTO platform_update_settings(id,token_cipher)VALUES(1,'legacy-fixture-secret'::bytea)`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.PlatformUpdates, err = selfupdate.New(ctx, selfupdate.Options{DB: db.Pool(), Guard: g, Executable: exe})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,21 +55,18 @@ func TestUpdatePermissionsEncryptedSettingsAndPersistedMandatoryGate(t *testing.
 	requestTest(t, customer, server.URL, http.MethodGet, "/api/v1/portal/system/versions", nil, 403)
 	requestTest(t, admin, server.URL, http.MethodPut, "/api/v1/portal/system/versions/settings", map[string]any{}, 403)
 	requestTest(t, admin, server.URL, http.MethodPost, "/api/v1/portal/system/versions/platform/install", map[string]any{}, 403)
-	requestTest(t, root, server.URL, http.MethodPut, "/api/v1/portal/system/versions/settings", map[string]any{"password": "wrong", "token": "fixture-private-token"}, 403)
-	raw := requestTest(t, root, server.URL, http.MethodPut, "/api/v1/portal/system/versions/settings", map[string]any{"password": "fixture-password", "token": "fixture-private-token"}, 200)
-	if bytes.Contains(raw, []byte("fixture-private-token")) || !bytes.Contains(raw, []byte(`"token_configured":true`)) {
-		t.Fatal("token status/leak")
+	requestTest(t, root, server.URL, http.MethodPut, "/api/v1/portal/system/versions/settings", map[string]any{"password": "wrong"}, 403)
+	requestTest(t, root, server.URL, http.MethodPut, "/api/v1/portal/system/versions/settings", map[string]any{"password": "fixture-password", "token": "obsolete-field"}, 400)
+	raw := requestTest(t, root, server.URL, http.MethodPut, "/api/v1/portal/system/versions/settings", map[string]any{"password": "fixture-password", "auto_install": false}, 200)
+	if bytes.Contains(raw, []byte("token_configured")) || bytes.Contains(raw, []byte("legacy-fixture-secret")) {
+		t.Fatal("obsolete credential settings exposed")
 	}
 	var cipher []byte
 	if err = s.db.QueryRow(ctx, `SELECT token_cipher FROM platform_update_settings WHERE id=1`).Scan(&cipher); err != nil {
 		t.Fatal(err)
 	}
-	if len(cipher) == 0 || strings.Contains(string(cipher), "fixture-private-token") {
-		t.Fatal("token not encrypted")
-	}
-	plain, err := s.vault.Decrypt(cipher, "platform-update:github-token")
-	if err != nil || string(plain) != "fixture-private-token" {
-		t.Fatal("bad encrypted token")
+	if len(cipher) != 0 {
+		t.Fatal("legacy update credential not cleared")
 	}
 	if err = g.Refresh(ctx, true); err != nil {
 		t.Fatal(err)
@@ -86,9 +86,5 @@ func TestUpdatePermissionsEncryptedSettingsAndPersistedMandatoryGate(t *testing.
 	raw = requestTest(t, admin, server.URL, http.MethodGet, "/api/v1/portal/system/versions", nil, 200)
 	if bytes.Contains(raw, []byte("fixture-private-token")) || !bytes.Contains(raw, []byte(`"force_update":true`)) {
 		t.Fatal("unsafe admin snapshot")
-	}
-	requestTest(t, root, server.URL, http.MethodPut, "/api/v1/portal/system/versions/settings", map[string]any{"password": "fixture-password", "clear_token": true}, 200)
-	if err = s.db.QueryRow(ctx, `SELECT token_cipher FROM platform_update_settings WHERE id=1`).Scan(&cipher); err != nil || len(cipher) > 0 {
-		t.Fatal("token not cleared")
 	}
 }

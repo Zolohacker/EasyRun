@@ -64,8 +64,6 @@ func (s *Service) putUpdateSettings(w http.ResponseWriter, r *http.Request) {
 	}
 	var in struct {
 		AutoInstall bool   `json:"auto_install"`
-		Token       string `json:"token"`
-		ClearToken  bool   `json:"clear_token"`
 		Password    string `json:"password"`
 	}
 	if decode(w, r, &in) != nil {
@@ -76,7 +74,7 @@ func (s *Service) putUpdateSettings(w http.ResponseWriter, r *http.Request) {
 		fail(w, 403, "超级管理员密码校验失败")
 		return
 	}
-	if err := s.PlatformUpdates.SaveSettings(r.Context(), in.AutoInstall, in.Token, in.ClearToken); err != nil {
+	if err := s.PlatformUpdates.SaveSettings(r.Context(), in.AutoInstall); err != nil {
 		fail(w, 400, err.Error())
 		return
 	}

@@ -73,7 +73,9 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Go build failed' }
           $metadata = (& ./out/easyrun.exe --version-json | ConvertFrom-Json)
           if ($metadata.version -ne $version -or -not $metadata.native_face) { throw 'Invalid release metadata' }
-          Compress-Archive -LiteralPath out/easyrun.exe -DestinationPath "release/easyrun_${env:GITHUB_REF_NAME}_windows_amd64.zip"
+          Copy-Item -LiteralPath models -Destination out/models -Recurse
+          Copy-Item -LiteralPath LICENSE -Destination out/LICENSE
+          Compress-Archive -Path out/* -DestinationPath "release/easyrun_${env:GITHUB_REF_NAME}_windows_amd64.zip"
       - name: Build and package (Linux)
         if: runner.os == 'Linux'
         shell: bash
@@ -89,7 +91,9 @@ jobs:
           mkdir -p out release
           go build -buildvcs=false -trimpath -ldflags "-s -w -X $pkg.Version=${GITHUB_REF_NAME#v} -X $pkg.Commit=$GITHUB_SHA -X $pkg.BuiltAt=$(date -u +%Y-%m-%dT%H:%M:%SZ) -X $pkg.BuildType=release" -o out/easyrun ./cmd/server
           if [ "$GOARCH" = amd64 ]; then ./out/easyrun --version-json; fi
-          tar -czf "release/easyrun_${GITHUB_REF_NAME}_linux_${GOARCH}.tar.gz" -C out easyrun
+          cp -R models out/models
+          cp LICENSE out/LICENSE
+          tar -czf "release/easyrun_${GITHUB_REF_NAME}_linux_${GOARCH}.tar.gz" -C out easyrun models LICENSE
       - uses: actions/upload-artifact@v7.0.2
         with:
           name: release-${{ matrix.os }}-${{ matrix.arch }}

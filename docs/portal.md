@@ -183,17 +183,9 @@ RPC 完整地址可能包含访问令牌，因此完整 URL 与 API Key 均使�
 
 CGO 原生加载器同时支持 Windows amd64 和 Linux amd64/arm64。Windows 使用 DLL；Linux 使用 `dlopen` 加载对应架构的 `libInspireFace.so`。识别优先调用 C API v2，也兼容 v1.2.3 的 Optional session API。模型包格式不改成 ONNX，继续使用现有 MNN 资源包。
 
-Linux 示例：
+仓库已随附 Megatron 模型和三个系统/架构的 SDK。普通部署无需导出环境变量或运行模型提取脚本：启动时自动读取 models/Megatron 和 models/linux-amd64/libInspireFace.so（ARM64 自动选择 linux-arm64，Windows 自动选择 windows-amd64）。Docker 镜像包含这些文件与基础运行时依赖。
 
-```sh
-sh scripts/setup-local-face.sh /opt/easyrun/models/libInspireFace.so /opt/easyrun/models/Megatron
-export FACE_ENGINE_LIBRARY_PATH=/opt/easyrun/models/libInspireFace.so
-export FACE_MODEL_PACK_PATH=/opt/easyrun/models/Megatron
-export FACE_DETECT_PIXEL_SIZE=320
-CGO_ENABLED=1 go build -o easyrun ./cmd/server
-```
-
-Docker 已使用 Debian/glibc 与 CGO，安装 `libstdc++6`、`libgomp1`，默认只读挂载 `./models:/app/models`。把对应架构运行库和模型包放入 `models`，设置容器内的两项绝对路径。模型与 SDK 二进制不提交到仓库。
+源码编译继续使用 CGO_ENABLED=1 go build -o easyrun ./cmd/server。系统配置会展示实际推理就绪状态；文件丢失、架构或依赖不匹配时保留明确错误，不把初始化失败当作识别成功。资源来源与非商业研究用途限制见 [models/NOTICE.md](../models/NOTICE.md)。
 
 **验证情况**：Windows 单元测试与数据库并发集成测试通过；WSL Linux amd64 全包测试通过，使用官方 v1.2.3 `.so` 与现有 Megatron 包通过真实同图推理测试。Linux arm64 有代码和构建条件支持，尚未在 arm64 硬件上验证。
 

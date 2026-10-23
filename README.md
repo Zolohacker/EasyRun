@@ -8,7 +8,7 @@
     <img alt="React 19" src="https://img.shields.io/badge/React-19-61DAFB?style=flat-square&amp;logo=react&amp;logoColor=061b17" />
     <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-5.7-3178C6?style=flat-square&amp;logo=typescript&amp;logoColor=white" />
     <img alt="PostgreSQL 17" src="https://img.shields.io/badge/PostgreSQL-17-4169E1?style=flat-square&amp;logo=postgresql&amp;logoColor=white" />
-    <img alt="Status" src="https://img.shields.io/badge/status-private_preview-36e6a0?style=flat-square" />
+    <img alt="MIT" src="https://img.shields.io/badge/license-MIT-36e6a0?style=flat-square" />
   </p>
 
   <p>
@@ -43,7 +43,7 @@ TSuL6W7SsLJpWkYkJSdXP64LGetttttttt
 
 后端使用 Go 独立完成协议适配、签名加密、登录验证、资源同步、路线编排和任务执行；前端使用 React + TypeScript 提供响应式管理界面。系统支持多账号、多地图 Key、数据库持久化缓存以及可观测的任务工作池。
 
-> 当前仓库处于 **Private Preview** 阶段，正在进行公开发布前的文档、测试和许可证整理。
+> 项目自有代码采用 **MIT** 许可证。随附第三方人脸模型保留上游非商业研究用途限制，详见 [资源说明](./models/NOTICE.md)。
 
 后台总览提供客户端最新版本 / 强更状态与平台更新。客户端强更时服务端暂停跑步自动化；平台支持稳定 Release 检查、一键更新、闲时自动安装与失败回滚。配置与发布方式见 [版本门禁与平台更新](./docs/updates.md)。
 
@@ -160,20 +160,14 @@ cd EasyRun
 cp .env.example .env
 ```
 
-编辑 `.env`，至少配置：
+编辑 `.env` 配置随机数据库密码（建议字母数字）：
 
 ```dotenv
-ACCOUNT_MASTER_KEY=BASE64_ENCODED_32_BYTE_KEY
-MAP_API_KEY=YOUR_WEB_SERVICE_KEY
 POSTGRES_PASSWORD=USE_A_RANDOM_ALPHANUMERIC_PASSWORD
 COOKIE_SECURE=false
 ```
 
-生成 32 字节主密钥：
-
-```bash
-openssl rand -base64 32
-```
+首次启动自动生成并保存主密钥到 `data/account-master.key`（Docker 使用持久卷）。无需手填主密钥和地图 Key；初始化后按总览提示，在「系统配置 → 地图与执行器」添加地图 Web 服务 Key。人脸模型与三平台推理库随包提供，启动自动识别路径。[首次启动、备份与旧部署迁移](./docs/first-run.md)。
 
 首次访问直接设置超级管理员邮箱、密码及使用模式，无需额外令牌；本机、容器和反向代理部署使用相同流程。正式 HTTPS 部署把 `COOKIE_SECURE` 设置为 `true`。
 
@@ -193,7 +187,7 @@ docker compose up -d --build
 git clone https://github.com/Zolohacker/EasyRun.git
 Set-Location EasyRun
 
-# 首次初始化本地数据库与加密主密钥
+# 首次初始化本地数据库；主密钥由应用首次启动自动生成
 .\scripts\local-db.ps1 init
 
 # 构建并启动
@@ -230,10 +224,9 @@ Set-Location EasyRun
 | `POSTGRES_USER` | `easyrun` | Docker Compose 数据库用户 |
 | `POSTGRES_PASSWORD` | 必填 | Docker Compose 数据库密码，建议使用随机字母数字 |
 | `DATABASE_MAX_CONNS` | `12` | 数据库最大连接数 |
-| `ACCOUNT_MASTER_KEY` | 必填 | Base64 编码的 32 字节账号加密主密钥 |
+| `EASYRUN_DATA_DIR` | `data` | 主密钥持久目录，必须备份并跨升级保留 |
 | `MAP_API_BASE_URL` | `https://restapi.amap.com` | 地图 Web 服务根地址 |
 | `MAP_API_PATH` | `/v3/direction/walking` | 步行路径接口 |
-| `MAP_API_KEY` | 可选 | 首次启动写入数据库的地图 Web 服务 Key |
 | `MAP_API_QPS` | `3` | 首个 Key 的默认独立 QPS |
 | `MAP_API_BURST` | `2` | 每个 Key 的令牌桶容量 |
 | `MAP_ROUTE_CANDIDATES` | `4` | 默认路线候选数，范围 1–8 |
@@ -243,11 +236,9 @@ Set-Location EasyRun
 | `PROTOCOL_BASE_URL` | 见示例配置 | 协议服务根地址 |
 | `PROTOCOL_ENVIRONMENT` | `9` | 客户端环境值 |
 | `PROTOCOL_TIMEOUT` | `20s` | 单个协议请求超时 |
-| `FACE_ENGINE_LIBRARY_PATH` | 空 | Windows DLL 或 Linux 对应架构 .so 的本地路径 |
-| `FACE_MODEL_PACK_PATH` | 空 | 本地模型归档路径 |
 | `FACE_DETECT_PIXEL_SIZE` | `320` | 检测输入级别：160、320 或 640 |
 
-完整示例见 [`.env.example`](./.env.example)。地图 Key、各 Key QPS、Worker 数和线程并发也可在「系统配置」页面持久化并热更新。
+完整示例见 [`.env.example`](./.env.example)。地图 Key 仅在「系统配置」页面填写并持久化；各 Key QPS、Worker 数和线程并发可热更新。原环境主密钥仅保留为旧部署迁移入口，新部署免填；随附模型自动发现，无需手配路径。
 
 ## 🔌 API 与协议基线
 
@@ -323,8 +314,8 @@ go test -race ./internal/mapapi
 
 ## 🔐 数据与密钥
 
-- 不要提交 `.env`、`.env.local`、数据库目录、备份、日志、模型包或真实账号数据。
-- 生产环境应使用独立随机的 `ACCOUNT_MASTER_KEY`，并在受控的密钥管理系统中保存。
+- 不要提交 `.env`、`.env.local`、`data`、数据库目录、备份、日志、自定义模型或真实账号数据；仓库明确随附的通用模型和 SDK 除外。
+- 每个部署自动生成独立随机主密钥，请离线备份 `data/account-master.key`；文件丢失时程序不会静默生成新钥匙覆盖旧加密部署。
 - 地图 API Key 在 PostgreSQL 中使用 AES-GCM 加密保存，接口只返回掩码。
 - 发布日志、截图或问题报告前，请移除账号、学号、手机号、轨迹与人脸图片。
 
@@ -344,11 +335,11 @@ go test -race ./internal/mapapi
 - [ ] Prometheus 指标与 OpenTelemetry 链路追踪
 - [x] 移动端底部导航、卡片列表、表单弹层与充值二维码
 - [ ] 国际化
-- [ ] 首个公开版本与迁移指南
+- [x] 公开源码、自动主密钥、随附模型与首次部署指南
 
 ## 🤝 参与贡献
 
-公开发布后欢迎通过 Issue 与 Pull Request 参与：
+欢迎通过 Issue 与 Pull Request 参与：
 
 1. Fork 本仓库并创建功能分支：`git switch -c feat/your-feature`
 2. 保持提交聚焦，并为行为变更补充测试
@@ -357,7 +348,7 @@ go test -race ./internal/mapapi
 
 ## 📄 许可证与项目状态
 
-仓库当前为私有预览，许可证将在正式公开前确定并补充。未随仓库提供的第三方服务、模型、品牌与数据，其权利归各自所有者。
+EasyRun 自有源码采用 [MIT](./LICENSE) 许可证。第三方服务、模型、原生 SDK、品牌与数据保留各自权利；随附模型的非商业研究用途限制见 [models/NOTICE.md](./models/NOTICE.md)。
 
 EasyRun 与目标客户端及相关服务提供方不存在官方隶属或背书关系。请仅在你有权管理的账号、数据和环境中使用，并遵守适用规则。
 

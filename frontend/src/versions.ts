@@ -7,7 +7,7 @@ export type BuildInfo = {version:string;commit:string;built_at:string;build_type
 export type PlatformVersionStatus = {
   current:BuildInfo;latest_version:string;has_update:boolean;notes:string;published_at:string;checked_at?:string
   last_error:string;can_install:boolean;can_rollback:boolean;capability_reason:string;phase:string;message:string
-  settings:{repository:string;auto_install:boolean;token_configured:boolean}
+  settings:{repository:string;auto_install:boolean}
 }
 export type Versions = {client:ClientVersionStatus;platform:PlatformVersionStatus}
 export const updating = (phase?:string) => ['downloading','prepared','installing','verifying'].includes(phase||'')

@@ -7,3 +7,6 @@
 *.gif binary
 *.webp binary
 *.ico binary
+*.dll binary
+*.so binary
+models/Megatron binary

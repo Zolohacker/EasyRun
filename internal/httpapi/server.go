@@ -173,6 +173,7 @@ func (a *api) health(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, status, map[string]any{
 		"build":              buildinfo.Current(),
 		"boot_id":            os.Getenv("EASYRUN_BOOT_ID"),
+		"face_runtime_ready": a.config.FaceReady,
 		"status":             state,
 		"database":           databaseOK,
 		"map_api_configured": a.mapConfigured(),
@@ -186,6 +187,7 @@ func (a *api) getConfig(w http.ResponseWriter, _ *http.Request) {
 		automationStats = a.automation.Stats()
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
+		"face_runtime":        map[string]any{"ready": a.config.FaceReady, "status": a.config.FaceStatus, "model": "Megatron"},
 		"map_api_configured":  a.mapConfigured(),
 		"database_configured": a.config.DatabaseConfigured(),
 		"protocol_configured": a.config.ProtocolConfigured(),

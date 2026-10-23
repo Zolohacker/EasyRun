@@ -117,6 +117,7 @@ func TestArchiveExtractionIsBoundedAndPathSafe(t *testing.T) {
 				ok    bool
 			}{
 				{"valid", []string{binaryName()}, 0755, true},
+				{"full release keeps models untouched", []string{binaryName(), "models/Megatron", "models/linux-amd64/libInspireFace.so"}, 0755, true},
 				{"traversal", []string{"../" + binaryName()}, 0755, false},
 				{"absolute", []string{"/" + binaryName()}, 0755, false},
 				{"windows path", []string{"C:\\" + binaryName()}, 0755, false},
@@ -179,9 +180,14 @@ func TestGitHubTrustAndCredentialStripping(t *testing.T) {
 	}
 }
 func TestCheckCachesAndNeverTreatsFailureAsUpToDate(t *testing.T) {
+	t.Setenv("GITHUB_TOKEN", "fixture-ignored-token")
+	t.Setenv("GH_TOKEN", "fixture-ignored-token")
 	calls := 0
 	s := &Service{http: &http.Client{Transport: transportFunc(func(r *http.Request) (*http.Response, error) {
 		calls++
+		if r.Header.Get("Authorization") != "" {
+			t.Fatal("public updater added credentials")
+		}
 		if r.URL.Host != "api.github.com" || r.URL.Path != "/repos/"+Repository+"/releases/latest" {
 			t.Fatalf("unexpected URL %s", r.URL)
 		}

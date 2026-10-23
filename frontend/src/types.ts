@@ -164,6 +164,7 @@ export type MapMetrics = {
 }
 
 export type Config = {
+  face_runtime?:{ready:boolean;status:string;model:string}
   map_api_configured: boolean; database_configured: boolean; protocol_configured: boolean
   route_candidates: number
   client_protocol: { app_version: string; build_version: string; app_code: string; environment: number; environment_name: string; base_url: string }

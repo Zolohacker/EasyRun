@@ -18,10 +18,11 @@ COPY --from=web /src/internal/httpapi/web/dist ./internal/httpapi/web/dist
 RUN CGO_ENABLED=1 GOOS=linux go build -buildvcs=false -trimpath -ldflags="-s -w -X github.com/Zolohacker/EasyRun/internal/buildinfo.Version=${VERSION} -X github.com/Zolohacker/EasyRun/internal/buildinfo.Commit=${COMMIT} -X github.com/Zolohacker/EasyRun/internal/buildinfo.BuiltAt=${BUILT_AT} -X github.com/Zolohacker/EasyRun/internal/buildinfo.BuildType=container" -o /out/easyrun ./cmd/server
 
 FROM debian:bookworm-slim
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates tzdata libstdc++6 libgomp1 && rm -rf /var/lib/apt/lists/* && useradd -M -u 10001 app
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates tzdata libstdc++6 libgomp1 && rm -rf /var/lib/apt/lists/* && useradd -M -u 10001 app && mkdir -p /app/data && chown app:app /app/data
 USER app
 WORKDIR /app
 COPY --from=build /out/easyrun /usr/local/bin/easyrun
+COPY models /app/models
 EXPOSE 8080
 ENV HTTP_ADDR=:8080
 ENTRYPOINT ["easyrun"]

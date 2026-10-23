@@ -10,7 +10,7 @@ const time=(value?:string)=>value?new Date(value).toLocaleString('zh-CN',{hour12
 export default function VersionManagementPanel({user,notify}:{user:PortalUser;notify:(message:string)=>void}) {
   const [data,setData]=useState<Versions|null>(null),[error,setError]=useState(''),[busy,setBusy]=useState('')
   const [modal,setModal]=useState<'settings'|'install'|'rollback'|null>(null),[password,setPassword]=useState('')
-  const [token,setToken]=useState(''),[clearToken,setClearToken]=useState(false),[auto,setAuto]=useState(false)
+  const [auto,setAuto]=useState(false)
   const [watch,setWatch]=useState(false),[reconnecting,setReconnecting]=useState(false)
   const initialBuild=useRef(''),watchStarted=useRef(0)
   const superadmin=user.role==='superadmin'
@@ -29,18 +29,18 @@ export default function VersionManagementPanel({user,notify}:{user:PortalUser;no
     setBusy(kind)
     try{await portalRequest(`system/versions/${kind}/check`,{});await refresh()}catch(e){notify((e as Error).message)}finally{setBusy('')}
   }
-  const open=(kind:'settings'|'install'|'rollback')=>{setPassword('');setToken('');setClearToken(false);setAuto(!!data?.platform.settings.auto_install);setModal(kind)}
+  const open=(kind:'settings'|'install'|'rollback')=>{setPassword('');setAuto(!!data?.platform.settings.auto_install);setModal(kind)}
   const submit=async(event:FormEvent)=>{
     event.preventDefault();if(!modal)return;setBusy('action')
     try {
       if(modal==='settings'){
-        await portalRequest('system/versions/settings',{auto_install:auto,token,clear_token:clearToken,password},'PUT')
+        await portalRequest('system/versions/settings',{auto_install:auto,password},'PUT')
         notify('更新配置已保存');await refresh()
       } else {
         await portalRequest(`system/versions/platform/${modal}`,{password})
         watchStarted.current=Date.now();setWatch(true);notify('已开始准备，下载、校验后会自动重启并验收')
       }
-      setModal(null);setPassword('');setToken('')
+      setModal(null);setPassword('')
     } catch(e) {notify((e as Error).message)}finally{setBusy('')}
   }
   if(!data)return <section className="panel version-loading"><h2>版本与更新</h2><p role={error?'alert':undefined}>{error||'正在读取客户端与平台版本…'}</p>{error&&<button className="button subtle" onClick={()=>void refresh()}>重试</button>}</section>
@@ -68,12 +68,10 @@ export default function VersionManagementPanel({user,notify}:{user:PortalUser;no
       <p className="version-muted version-source">更新源 {platform.settings.repository} · 每 20 分钟检查</p>
     </article>
     {error&&<p className="version-error" role="alert">{error}</p>}
-    {modal&&<Modal title={modal==='settings'?'平台更新设置':modal==='install'?'确认更新平台':'确认回滚平台'} onClose={()=>{if(!busy){setModal(null);setPassword('');setToken('')}}}>
+    {modal&&<Modal title={modal==='settings'?'平台更新设置':modal==='install'?'确认更新平台':'确认回滚平台'} onClose={()=>{if(!busy){setModal(null);setPassword('')}}}>
       <form className="version-settings" onSubmit={event=>void submit(event)}>
         {modal==='settings'?<>
-          <p className="portal-hint">从固定仓库 {platform.settings.repository} 获取稳定 Release。私有仓库需配置仅此仓库 Contents: Read 权限的 Token，保存后加密存储且不回显。</p>
-          <label>只读 GitHub Token<input type="password" autoComplete="off" value={token} onChange={e=>setToken(e.target.value)} placeholder={platform.settings.token_configured?'已配置，留空保持不变':'私有仓库填写，公开仓库可留空'} disabled={clearToken}/></label>
-          {platform.settings.token_configured&&<label className="version-checkbox"><input type="checkbox" checked={clearToken} onChange={e=>setClearToken(e.target.checked)}/>清除已保存的 Token</label>}
+          <p className="portal-hint">从公开仓库 {platform.settings.repository} 获取稳定 Release，免填访问凭据。</p>
           <label className="version-checkbox"><input type="checkbox" checked={auto} onChange={e=>setAuto(e.target.checked)} disabled={!!platform.capability_reason}/>发现稳定版后，仅在任务空闲时自动安装</label>
           <p className="portal-hint">运行中或排队任务不会被平台更新打断。发行包须通过 SHA-256 校验，重启验收失败将自动回滚。客户端强更门禁始终独立生效。</p>
         </>:<p className="portal-hint">{modal==='install'?`将下载 ${platform.latest_version} 并校验后安装。`:'将恢复上一份通过校验的程序备份。'} 仅在无运行/排队任务时执行；期间暂停新任务，更新程序不会替换数据库、钱包、配置和模型文件。</p>}

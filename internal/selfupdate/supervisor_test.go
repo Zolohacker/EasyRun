@@ -25,13 +25,18 @@ func TestHealthCheckRequiresExactBuildAndBootIdentity(t *testing.T) {
 	done := make(chan error)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	if err := verifyHealth(ctx, server.URL+"/healthz", "boot", info, done); err != nil {
+	if err := verifyHealth(ctx, server.URL+"/healthz", "boot", info, done, false); err != nil {
 		t.Fatal(err)
 	}
 	ctx2, cancel2 := context.WithTimeout(context.Background(), 600*time.Millisecond)
 	defer cancel2()
-	if verifyHealth(ctx2, server.URL+"/healthz", "wrong", info, done) == nil {
+	if verifyHealth(ctx2, server.URL+"/healthz", "wrong", info, done, false) == nil {
 		t.Fatal("wrong process accepted")
+	}
+	ctx3, cancel3 := context.WithTimeout(context.Background(), 600*time.Millisecond)
+	defer cancel3()
+	if verifyHealth(ctx3, server.URL+"/healthz", "boot", info, done, true) == nil {
+		t.Fatal("update degraded an initialized face engine")
 	}
 	if _, err := HealthURL("198.51.100.1:8080"); err == nil {
 		t.Fatal("nonloopback check accepted")

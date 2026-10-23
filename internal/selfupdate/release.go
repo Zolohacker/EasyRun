@@ -102,7 +102,7 @@ func githubClient() *http.Client {
 		return nil
 	}}
 }
-func (s *Service) githubRequest(ctx context.Context, endpoint, token string, binary bool, limit int64) ([]byte, error) {
+func (s *Service) githubRequest(ctx context.Context, endpoint string, binary bool, limit int64) ([]byte, error) {
 	address := "https://api.github.com/repos/" + Repository + endpoint
 	r, err := http.NewRequestWithContext(ctx, "GET", address, nil)
 	if err != nil {
@@ -114,16 +114,13 @@ func (s *Service) githubRequest(ctx context.Context, endpoint, token string, bin
 	if binary {
 		r.Header.Set("Accept", "application/octet-stream")
 	}
-	if token != "" {
-		r.Header.Set("Authorization", "Bearer "+token)
-	}
 	resp, err := s.http.Do(r)
 	if err != nil {
 		return nil, errors.New("连接 GitHub 更新服务失败，请检查网络")
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode == 404 {
-		return nil, errors.New("尚无可用 Release，或仓库为私有且只读 Token 未配置/无权限")
+		return nil, errors.New("公开更新源尚无可用 Release，请等待维护者发布稳定版本")
 	}
 	if resp.StatusCode != 200 {
 		return nil, fmt.Errorf("GitHub 更新服务返回 HTTP %d", resp.StatusCode)
@@ -197,7 +194,8 @@ func equalBytes(a, b []byte) bool {
 	return v == 0
 }
 func safeEntry(name string) bool {
-	return name != "" && !strings.ContainsAny(name, "\\:") && !strings.HasPrefix(name, "/") && path.Clean(name) == name && path.Base(name) == name && name != ".."
+	name = strings.TrimSuffix(name, "/")
+	return name != "" && name != "." && name != ".." && !strings.ContainsAny(name, "\\:\x00\r\n") && !strings.HasPrefix(name, "/") && !strings.HasPrefix(name, "../") && path.Clean(name) == name
 }
 
 // Never extract paths chosen by an archive. Only copy one regular root binary.
@@ -233,13 +231,18 @@ func extractArchive(archive, dest string) error {
 			return err
 		}
 		defer z.Close()
-		if len(z.File) > 16 {
+		if len(z.File) > 64 {
 			return errors.New("压缩包文件过多")
 		}
 		var chosen *zip.File
+		total := uint64(0)
 		for _, f := range z.File {
-			if !safeEntry(f.Name) || !f.Mode().IsRegular() || f.UncompressedSize64 > uint64(maxPackageSize) {
+			total += f.UncompressedSize64
+			if !safeEntry(f.Name) || (!f.Mode().IsRegular() && !f.FileInfo().IsDir()) || f.UncompressedSize64 > uint64(maxPackageSize) || total > uint64(maxPackageSize) {
 				return errors.New("压缩包含不安全路径、链接或过大文件")
+			}
+			if f.FileInfo().IsDir() {
+				continue
 			}
 			if f.Name == binaryName() {
 				if chosen != nil {
@@ -280,8 +283,11 @@ func extractArchive(archive, dest string) error {
 			return err
 		}
 		total += h.Size
-		if count >= 16 || !safeEntry(h.Name) || h.Typeflag != tar.TypeReg || total > maxPackageSize {
+		if count >= 64 || !safeEntry(h.Name) || (h.Typeflag != tar.TypeReg && h.Typeflag != tar.TypeDir) || total > maxPackageSize {
 			return errors.New("压缩包含不安全路径、链接或过大文件")
+		}
+		if h.Typeflag == tar.TypeDir {
+			continue
 		}
 		if h.Name == binaryName() {
 			if found {

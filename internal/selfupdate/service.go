@@ -16,29 +16,28 @@ import (
 	"time"
 
 	"github.com/Zolohacker/EasyRun/internal/buildinfo"
-	"github.com/Zolohacker/EasyRun/internal/securestore"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type Pauser interface{ Pause(string) (func(), error) }
 type Settings struct {
-	AutoInstall     bool   `json:"auto_install"`
-	TokenConfigured bool   `json:"token_configured"`
-	Repository      string `json:"repository"`
+	AutoInstall bool   `json:"auto_install"`
+	Repository  string `json:"repository"`
 }
 type State struct {
-	ReleaseTag string         `json:"release_tag"`
-	Phase      string         `json:"phase"`
-	Message    string         `json:"message"`
-	Mode       string         `json:"mode"`
-	Target     string         `json:"target"`
-	Candidate  string         `json:"candidate"`
-	Backup     string         `json:"backup"`
-	BeforeSHA  string         `json:"before_sha"`
-	AfterSHA   string         `json:"after_sha"`
-	Before     buildinfo.Info `json:"before"`
-	After      buildinfo.Info `json:"after"`
-	UpdatedAt  time.Time      `json:"updated_at"`
+	RequireFace bool           `json:"require_face"`
+	ReleaseTag  string         `json:"release_tag"`
+	Phase       string         `json:"phase"`
+	Message     string         `json:"message"`
+	Mode        string         `json:"mode"`
+	Target      string         `json:"target"`
+	Candidate   string         `json:"candidate"`
+	Backup      string         `json:"backup"`
+	BeforeSHA   string         `json:"before_sha"`
+	AfterSHA    string         `json:"after_sha"`
+	Before      buildinfo.Info `json:"before"`
+	After       buildinfo.Info `json:"after"`
+	UpdatedAt   time.Time      `json:"updated_at"`
 }
 type backupInfo struct {
 	SHA   string         `json:"sha"`
@@ -60,8 +59,8 @@ type Status struct {
 	Settings         Settings       `json:"settings"`
 }
 type Options struct {
+	FaceReady  bool
 	DB         *pgxpool.Pool
-	Vault      *securestore.Vault
 	Guard      Pauser
 	Busy       func() bool
 	Shutdown   func()
@@ -69,8 +68,8 @@ type Options struct {
 	HTTP       *http.Client
 }
 type Service struct {
+	requireFace                     bool
 	db                              *pgxpool.Pool
-	vault                           *securestore.Vault
 	guard                           Pauser
 	workloadBusy                    func() bool
 	shutdown                        func()
@@ -101,14 +100,15 @@ func New(ctx context.Context, o Options) (*Service, error) {
 	if err != nil {
 		return nil, err
 	}
-	s := &Service{db: o.DB, vault: o.Vault, guard: o.Guard, workloadBusy: o.Busy, shutdown: o.Shutdown, http: o.HTTP, exe: exe, dir: filepath.Join(filepath.Dir(exe), ".easyrun-update")}
+	s := &Service{db: o.DB, requireFace: o.FaceReady, guard: o.Guard, workloadBusy: o.Busy, shutdown: o.Shutdown, http: o.HTTP, exe: exe, dir: filepath.Join(filepath.Dir(exe), ".easyrun-update")}
 	s.statePath = filepath.Join(s.dir, "state.json")
 	if s.http == nil {
 		s.http = githubClient()
 	}
 	s.status.Current = buildinfo.Current()
 	if o.DB != nil {
-		if _, err := o.DB.Exec(ctx, `CREATE TABLE IF NOT EXISTS platform_update_settings(id smallint PRIMARY KEY CHECK(id=1),auto_install boolean NOT NULL DEFAULT false,token_cipher bytea); INSERT INTO platform_update_settings(id)VALUES(1)ON CONFLICT DO NOTHING`); err != nil {
+		if _, err := o.DB.Exec(ctx, `CREATE TABLE IF NOT EXISTS platform_update_settings(id smallint PRIMARY KEY CHECK(id=1),auto_install boolean NOT NULL DEFAULT false); INSERT INTO platform_update_settings(id)VALUES(1)ON CONFLICT DO NOTHING;
+DO $$ BEGIN IF EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema=current_schema() AND table_name='platform_update_settings' AND column_name='token_cipher') THEN EXECUTE 'UPDATE platform_update_settings SET token_cipher=NULL'; END IF; END $$;`); err != nil {
 			return nil, err
 		}
 	}
@@ -145,45 +145,22 @@ func New(ctx context.Context, o Options) (*Service, error) {
 	}
 	return s, nil
 }
-func (s *Service) settings(ctx context.Context) (Settings, string, error) {
+func (s *Service) settings(ctx context.Context) (Settings, error) {
 	v := Settings{Repository: Repository}
 	if s.db == nil {
-		return v, "", nil
+		return v, nil
 	}
-	var cipher []byte
-	if err := s.db.QueryRow(ctx, `SELECT auto_install,token_cipher FROM platform_update_settings WHERE id=1`).Scan(&v.AutoInstall, &cipher); err != nil {
-		return v, "", err
-	}
-	v.TokenConfigured = len(cipher) > 0
-	if len(cipher) == 0 {
-		return v, "", nil
-	}
-	raw, err := s.vault.Decrypt(cipher, "platform-update:github-token")
-	return v, string(raw), err
+	err := s.db.QueryRow(ctx, `SELECT auto_install FROM platform_update_settings WHERE id=1`).Scan(&v.AutoInstall)
+	return v, err
 }
-func (s *Service) SaveSettings(ctx context.Context, auto bool, token string, clear bool) error {
+func (s *Service) SaveSettings(ctx context.Context, auto bool) error {
 	if s.db == nil {
 		return errors.New("更新配置存储未初始化")
-	}
-	token = strings.TrimSpace(token)
-	if clear && token != "" {
-		return errors.New("清除 Token 时请留空新 Token")
-	}
-	if len(token) > 4096 || strings.ContainsAny(token, "\r\n") {
-		return errors.New("GitHub Token 格式不正确")
 	}
 	if auto && s.capability != "" {
 		return errors.New(s.capability)
 	}
-	var cipher []byte
-	var err error
-	if token != "" {
-		cipher, err = s.vault.Encrypt([]byte(token), "platform-update:github-token")
-		if err != nil {
-			return err
-		}
-	}
-	_, err = s.db.Exec(ctx, `UPDATE platform_update_settings SET auto_install=$1,token_cipher=CASE WHEN $2 THEN NULL WHEN $3::bytea IS NOT NULL THEN $3 ELSE token_cipher END WHERE id=1`, auto, clear, cipher)
+	_, err := s.db.Exec(ctx, `UPDATE platform_update_settings SET auto_install=$1 WHERE id=1`, auto)
 	if err == nil {
 		s.mu.Lock()
 		s.status.CheckedAt = nil
@@ -195,7 +172,7 @@ func (s *Service) Snapshot(ctx context.Context) Status {
 	s.mu.Lock()
 	v := s.status
 	s.mu.Unlock()
-	v.Settings, _, _ = s.settings(ctx)
+	v.Settings, _ = s.settings(ctx)
 	v.CapabilityReason = s.capability
 	v.CanInstall = s.capability == "" && v.HasUpdate
 	state, err := readState(s.statePath)
@@ -222,11 +199,11 @@ func (s *Service) Check(ctx context.Context, force bool) error {
 		return nil
 	}
 	s.mu.Unlock()
-	_, token, err := s.settings(ctx)
+	_, err := s.settings(ctx)
 	var release Release
 	if err == nil {
 		var raw []byte
-		raw, err = s.githubRequest(ctx, "/releases/latest", token, false, 2<<20)
+		raw, err = s.githubRequest(ctx, "/releases/latest", false, 2<<20)
 		if err == nil {
 			err = json.Unmarshal(raw, &release)
 		}
@@ -296,6 +273,7 @@ func (s *Service) Start(ctx context.Context, rollback bool) error {
 		return fail(err)
 	}
 	state := State{Phase: "downloading", Message: "正在下载并校验发行包", Mode: "update", Target: s.exe, Candidate: filepath.Join(s.dir, "candidate"+filepath.Ext(binaryName())), Backup: filepath.Join(s.dir, "previous"+filepath.Ext(binaryName())), BeforeSHA: before, Before: buildinfo.Current(), UpdatedAt: time.Now().UTC()}
+	state.RequireFace = s.requireFace
 	if release != nil {
 		state.ReleaseTag = release.Tag
 	}
@@ -351,15 +329,11 @@ func (s *Service) prepare(ctx context.Context, release *Release, state *State) e
 	if err != nil {
 		return err
 	}
-	_, token, err := s.settings(ctx)
+	raw, err := s.githubRequest(ctx, fmt.Sprintf("/releases/assets/%d", archive.ID), true, maxPackageSize)
 	if err != nil {
 		return err
 	}
-	raw, err := s.githubRequest(ctx, fmt.Sprintf("/releases/assets/%d", archive.ID), token, true, maxPackageSize)
-	if err != nil {
-		return err
-	}
-	checks, err := s.githubRequest(ctx, fmt.Sprintf("/releases/assets/%d", checksums.ID), token, true, 256<<10)
+	checks, err := s.githubRequest(ctx, fmt.Sprintf("/releases/assets/%d", checksums.ID), true, 256<<10)
 	if err != nil {
 		return err
 	}
@@ -467,7 +441,7 @@ func (s *Service) Run(ctx context.Context) {
 		}
 		if time.Since(lastAuto) >= time.Minute {
 			lastAuto = time.Now()
-			cfg, _, err := s.settings(ctx)
+			cfg, err := s.settings(ctx)
 			v := s.Snapshot(ctx)
 			state, _ := readState(s.statePath)
 			if err == nil && cfg.AutoInstall && v.CanInstall && !autoSuppressed(state, v.LatestVersion) {

@@ -5,7 +5,7 @@
 .pgtest
 artifacts
 bin
-models
+data
 frontend/node_modules
 frontend/*.tsbuildinfo
 *.log

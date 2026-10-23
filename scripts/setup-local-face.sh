@@ -1,22 +1,19 @@
 #!/usr/bin/env sh
-# Configure an existing, architecture-matched Linux InspireFace runtime and
-# model pack. This script neither changes the SDK nor downloads private models.
+# Verify bundled files; no APK extraction or model download is required.
 set -eu
-if [ "$#" -ne 2 ]; then
-  printf 'Usage: %s /absolute/path/libInspireFace.so /absolute/path/Megatron\n' "$0" >&2
-  exit 2
-fi
-library=$(realpath "$1")
-pack=$(realpath "$2")
-test -r "$library" && test -r "$pack"
+root=$(CDPATH= cd -- "$(dirname -- "$0")/../models" && pwd)
 case "$(uname -m)" in
-  x86_64|aarch64) ;;
+  x86_64) arch=amd64 ;;
+  aarch64|arm64) arch=arm64 ;;
   *) printf 'Supported Linux architectures: x86_64, aarch64\n' >&2; exit 2 ;;
 esac
+if [ "$#" -gt 0 ]; then root=$(realpath "$1"); fi
+cd "$root"
+grep -E "  (Megatron|linux-${arch}/libInspireFace.so)$" SHA256SUMS | sha256sum -c -
+library="$root/linux-$arch/libInspireFace.so"
 if ldd "$library" | grep -q 'not found'; then
   ldd "$library" >&2
-  printf 'Install the missing native runtime dependencies first.\n' >&2
+  printf 'Install the missing C++/OpenMP runtime dependencies.\n' >&2
   exit 2
 fi
-printf 'FACE_ENGINE_LIBRARY_PATH=%s\nFACE_MODEL_PACK_PATH=%s\nFACE_DETECT_PIXEL_SIZE=320\n' "$library" "$pack"
-printf 'Build with CGO_ENABLED=1. Docker uses the Debian/glibc image, not Alpine.\n' >&2
+printf 'Bundled models verified; start EasyRun normally, with CGO enabled.\n'

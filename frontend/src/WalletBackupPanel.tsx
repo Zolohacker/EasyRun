@@ -43,7 +43,7 @@ export default function WalletBackupPanel({wallet,onCreate,creating,canCreate}:{
   }
   const download=()=>{
     if(!backup)return
-    const text=[`EasyRun 钱包离线备份`, `类型: ${backup.kind==='bip39'?'BIP39 英文助记词':'旧版原始 seed'}`,`网络: ${backup.network}`,`派生路径: ${backup.derivation_path}`,backup.kind==='bip39'?`BIP39 附加口令: 空（不是超级管理员密码）`:`请直接使用原始 seed 恢复，不要将其当作 BIP39 熵。`,``,backup.mnemonic||backup.seed_hex||'',``,`此备份控制本部署全部客户收款地址；请离线妥善保管。另行备份数据库与 ACCOUNT_MASTER_KEY。`].join('\n')
+    const text=[`EasyRun 钱包离线备份`, `类型: ${backup.kind==='bip39'?'BIP39 英文助记词':'旧版原始 seed'}`,`网络: ${backup.network}`,`派生路径: ${backup.derivation_path}`,backup.kind==='bip39'?`BIP39 附加口令: 空（不是超级管理员密码）`:`请直接使用原始 seed 恢复，不要将其当作 BIP39 熵。`,``,backup.mnemonic||backup.seed_hex||'',``,`此备份控制本部署全部客户收款地址；请离线妥善保管。另行备份数据库与主密钥文件 data/account-master.key。`].join('\n')
     const url=URL.createObjectURL(new Blob([text],{type:'text/plain;charset=utf-8'}));const anchor=document.createElement('a');anchor.href=url;anchor.download=`easyrun-wallet-${backup.network}-backup.txt`;anchor.click();setTimeout(()=>URL.revokeObjectURL(url),1000)
   }
   return <>

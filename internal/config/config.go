@@ -3,6 +3,8 @@ package config
 import (
 	"fmt"
 	"os"
+	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -10,13 +12,13 @@ import (
 
 type Config struct {
 	HTTPAddr                    string
+	DataDir                     string
 	DatabaseURL                 string
 	DatabaseMaxConns            int32
 	DatabaseMinConns            int32
 	DatabaseTimeout             time.Duration
 	MapBaseURL                  string
 	MapPath                     string
-	MapAPIKey                   string
 	MapTimeout                  time.Duration
 	MapQPS                      float64
 	MapBurst                    int
@@ -36,6 +38,8 @@ type Config struct {
 	FaceEngineLibrary           string
 	FaceModelPack               string
 	FaceDetectPixelSize         int
+	FaceReady                   bool
+	FaceStatus                  string
 }
 
 func Load() (Config, error) {
@@ -111,15 +115,15 @@ func Load() (Config, error) {
 		return Config{}, fmt.Errorf("FACE_DETECT_PIXEL_SIZE must be 160, 320, or 640")
 	}
 
-	return Config{
+	cfg := Config{
 		HTTPAddr:                    env("HTTP_ADDR", ":8080"),
+		DataDir:                     env("EASYRUN_DATA_DIR", "data"),
 		DatabaseURL:                 strings.TrimSpace(os.Getenv("DATABASE_URL")),
 		DatabaseMaxConns:            int32(databaseMaxConns),
 		DatabaseMinConns:            int32(databaseMinConns),
 		DatabaseTimeout:             databaseTimeout,
-		MapBaseURL:                  strings.TrimRight(strings.TrimSpace(os.Getenv("MAP_API_BASE_URL")), "/"),
+		MapBaseURL:                  strings.TrimRight(env("MAP_API_BASE_URL", "https://restapi.amap.com"), "/"),
 		MapPath:                     env("MAP_API_PATH", "/v3/direction/walking"),
-		MapAPIKey:                   strings.TrimSpace(os.Getenv("MAP_API_KEY")),
 		MapTimeout:                  timeout,
 		MapQPS:                      mapQPS,
 		MapBurst:                    mapBurst,
@@ -139,12 +143,41 @@ func Load() (Config, error) {
 		FaceEngineLibrary:           strings.TrimSpace(os.Getenv("FACE_ENGINE_LIBRARY_PATH")),
 		FaceModelPack:               strings.TrimSpace(os.Getenv("FACE_MODEL_PACK_PATH")),
 		FaceDetectPixelSize:         faceDetectPixelSize,
-	}, nil
+	}
+	cfg.discoverFaceAssets()
+	return cfg, nil
 }
 
 func (c Config) MapConfigured() bool {
-	return c.MapBaseURL != "" && c.MapBaseURL != "APP_URL" && c.MapAPIKey != ""
+	// Keys live exclusively in PostgreSQL system settings, not the environment.
+	return false
 }
+
+func (c *Config) discoverFaceAssets() {
+	roots := []string{"models"}
+	if exe, err := os.Executable(); err == nil {
+		roots = append(roots, filepath.Join(filepath.Dir(exe), "models"), filepath.Join(filepath.Dir(exe), "..", "models"))
+	}
+	for _, root := range roots {
+		if c.FaceModelPack == "" {
+			p := filepath.Join(root, "Megatron")
+			if regularFile(p) {
+				c.FaceModelPack = p
+			}
+		}
+		if c.FaceEngineLibrary == "" {
+			name := "libInspireFace.so"
+			if runtime.GOOS == "windows" {
+				name = "libInspireFace.dll"
+			}
+			p := filepath.Join(root, runtime.GOOS+"-"+runtime.GOARCH, name)
+			if regularFile(p) {
+				c.FaceEngineLibrary = p
+			}
+		}
+	}
+}
+func regularFile(p string) bool { v, e := os.Stat(p); return e == nil && v.Mode().IsRegular() }
 
 func (c Config) DatabaseConfigured() bool {
 	return c.DatabaseURL != "" && c.DatabaseURL != "POSTGRES_DSN"

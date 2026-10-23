@@ -23,23 +23,23 @@ services:
       HTTP_ADDR: :8080
       DATABASE_URL: postgres://${POSTGRES_USER:-easyrun}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/${POSTGRES_DB:-easyrun}?sslmode=disable
       DATABASE_MAX_CONNS: 12
-      ACCOUNT_MASTER_KEY: ${ACCOUNT_MASTER_KEY:?set ACCOUNT_MASTER_KEY in .env}
+      EASYRUN_DATA_DIR: /app/data
+      # Optional legacy import only; new deployments generate and persist a key.
+      ACCOUNT_MASTER_KEY: ${ACCOUNT_MASTER_KEY:-}
       MAP_API_BASE_URL: ${MAP_API_BASE_URL:-https://restapi.amap.com}
-      MAP_API_KEY: ${MAP_API_KEY:-}
       MAP_API_QPS: ${MAP_API_QPS:-3}
       MAP_API_BURST: ${MAP_API_BURST:-2}
       MAP_ROUTE_CANDIDATES: ${MAP_ROUTE_CANDIDATES:-4}
       AUTOMATION_WORKERS: ${AUTOMATION_WORKERS:-2}
       AUTOMATION_WORKER_CONCURRENCY: ${AUTOMATION_WORKER_CONCURRENCY:-1}
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
-      FACE_ENGINE_LIBRARY_PATH: ${FACE_ENGINE_LIBRARY_PATH:-}
-      FACE_MODEL_PACK_PATH: ${FACE_MODEL_PACK_PATH:-}
       FACE_DETECT_PIXEL_SIZE: ${FACE_DETECT_PIXEL_SIZE:-320}
     volumes:
-      - ./models:/app/models:ro
+      - easyrun_data:/app/data
     ports:
       - "8080:8080"
     restart: unless-stopped
 
 volumes:
   easyrun_db:
+  easyrun_data:

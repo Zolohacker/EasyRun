@@ -9,6 +9,7 @@ $ErrorActionPreference = "Stop"
 $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $EnvFile = Join-Path $ProjectRoot ".env.local"
 $Executable = Join-Path $ProjectRoot "bin\easyrun.exe"
+Set-Location -LiteralPath $ProjectRoot
 
 if (-not (Test-Path -LiteralPath $EnvFile)) {
     & (Join-Path $PSScriptRoot "local-db.ps1") init
