@@ -81,11 +81,11 @@ export default function AmapRouteViewport({ route, samples, area, variant = 'pla
     const boundary = (area?.boundary || []).map(point => [point.lat, point.lng] as L.LatLngTuple)
     if (boundary.length >= 3) {
       L.polygon(boundary, {
-        color: '#0a8f5c',
+        color: '#647084',
         weight: 2,
         opacity: .9,
         dashArray: '7 7',
-        fillColor: '#62f6aa',
+        fillColor: '#4f60ca',
         fillOpacity: .055,
       }).bindTooltip(`${area?.name || '校园'}围栏`, {sticky: true}).addTo(dataLayer)
       bounds.extend(L.latLngBounds(boundary))
@@ -94,14 +94,14 @@ export default function AmapRouteViewport({ route, samples, area, variant = 'pla
     const planned = (route?.points || []).map(point => [point.lat, point.lng] as L.LatLngTuple)
     if (planned.length >= 2) {
       L.polyline(planned, {
-        color: '#031a13',
+        color: '#ffffff',
         weight: 10,
-        opacity: .55,
+        opacity: .9,
         lineCap: 'round',
         lineJoin: 'round',
       }).addTo(dataLayer)
       L.polyline(planned, {
-        color: '#18d77d',
+        color: '#4f60ca',
         weight: 5,
         opacity: .98,
         lineCap: 'round',
@@ -120,7 +120,7 @@ export default function AmapRouteViewport({ route, samples, area, variant = 'pla
     const observed = samples.map(sample => [sample.lat, sample.lng] as L.LatLngTuple)
     if (observed.length >= 2) {
       L.polyline(observed, {
-        color: '#258dff',
+        color: '#2f7c65',
         weight: 3,
         opacity: .9,
         dashArray: '2 7',
@@ -155,7 +155,7 @@ export default function AmapRouteViewport({ route, samples, area, variant = 'pla
       <button type="button" title="显示完整路线" disabled={!route} onClick={fitRoute}><ScanLine size={15}/><span>全览</span></button>
     </div>
     <div className="map-provider"><i/>高德地图 <b>GCJ-02</b></div>
-    {!route && <div className="map-empty map-empty-on-map"><strong>{variant === 'record' ? '该记录暂无轨迹点' : area ? '区域已定位' : '等待选择区域'}</strong><span>{variant === 'record' ? '服务端返回轨迹后将在高德地图上绘制' : area ? '点击「道路级规划」后在真实地图上显示路线' : '选择账号、计划和校园区域后开始规划'}</span></div>}
+    {!route && <div className="map-empty map-empty-on-map"><strong>{variant === 'record' ? '暂无轨迹点' : area ? '区域已定位' : '等待选择区域'}</strong><span>{variant === 'record' ? '同步轨迹后显示路线' : area ? '完成规划后显示路线' : '请选择账号、计划与区域'}</span></div>}
     {route && <>
       <div className="map-legend"><span><i className="planned"/>{variant === 'record' ? '实际轨迹' : '规划路线'}</span>{samples.length > 1 && <span><i className="observed"/>采样轨迹</span>}{variant === 'plan' && <span><i className="boundary"/>校园围栏</span>}</div>
       <div className="map-coordinates"><span>{route.source.toUpperCase()} · {route.coordinate_system}</span><b>{route.points.length.toLocaleString()} POINTS</b></div>

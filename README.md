@@ -4,24 +4,28 @@
   <p><strong>面向闪动校园的智能代跑平台</strong></p>
 
   <p>
+    <a href="https://github.com/Zolohacker/EasyRun/releases/latest"><img alt="最新版本" src="https://img.shields.io/github/v/release/Zolohacker/EasyRun?style=flat-square&amp;color=5965bd" /></a>
     <img alt="Go 1.23" src="https://img.shields.io/badge/Go-1.23-00ADD8?style=flat-square&amp;logo=go&amp;logoColor=white" />
-    <img alt="React 19" src="https://img.shields.io/badge/React-19-61DAFB?style=flat-square&amp;logo=react&amp;logoColor=061b17" />
+    <img alt="React 19" src="https://img.shields.io/badge/React-19-61DAFB?style=flat-square&amp;logo=react&amp;logoColor=17233c" />
     <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-5.7-3178C6?style=flat-square&amp;logo=typescript&amp;logoColor=white" />
     <img alt="PostgreSQL 17" src="https://img.shields.io/badge/PostgreSQL-17-4169E1?style=flat-square&amp;logo=postgresql&amp;logoColor=white" />
-    <img alt="MIT" src="https://img.shields.io/badge/license-MIT-36e6a0?style=flat-square" />
+    <img alt="MIT" src="https://img.shields.io/badge/license-MIT-5965bd?style=flat-square" />
   </p>
 
   <p>
-    <a href="#-项目亮点">项目亮点</a> ·
-    <a href="#-快速开始">快速开始</a> ·
-    <a href="#-系统架构">系统架构</a> ·
-    <a href="#-配置参考">配置参考</a> ·
-    <a href="#-参与贡献">参与贡献</a> ·
-    <a href="#-支持维护">支持维护</a>
+    <a href="https://github.com/Zolohacker/EasyRun/releases/latest">下载发行版</a> ·
+    <a href="#preview">界面预览</a> ·
+    <a href="#features">项目亮点</a> ·
+    <a href="#quick-start">快速开始</a> ·
+    <a href="./CHANGELOG.md">更新日志</a> ·
+    <a href="#support">支持维护</a> ·
+    <a href="#contributing">参与贡献</a>
   </p>
 </div>
 
 ---
+
+<a id="support"></a>
 
 ## ❤️ 支持维护
 
@@ -37,23 +41,45 @@ TSuL6W7SsLJpWkYkJSdXP64LGetttttttt
 
 ## ✨ 项目简介
 
-**EasyRun** 是一个面向 **闪动校园**、采用 Go、React 与 PostgreSQL 构建的**智能代跑平台**。它把账号会话、计划规则、校园区域、路线规划、任务调度、运行记录和系统配置集中到一个高科技风格的 Web 控制台中。
+**EasyRun** 是面向 **闪动校园**的**智能代跑平台**。基于 Go、React 与 PostgreSQL，将账号、计划、路线、任务和记录集中到一个可自行部署的工作台中，支持个人使用与可选客户前台。
 
 **当前适配版本：闪动校园 Android `8.7.9`**（Build `26101910`）。这是本项目已适配的客户端基线，不代表其他版本已经验证兼容。
 
-后端使用 Go 独立完成协议适配、签名加密、登录验证、资源同步、路线编排和任务执行；前端使用 React + TypeScript 提供响应式管理界面。系统支持多账号、多地图 Key、数据库持久化缓存以及可观测的任务工作池。
+后端使用 Go 独立实现协议适配与任务调度，前端使用 React + TypeScript。多账号管理、多地图 Key、持久化缓存和执行日志均在同一控制台中提供。
 
 > 项目自有代码采用 **MIT** 许可证。随附第三方人脸模型保留上游非商业研究用途限制，详见 [资源说明](./models/NOTICE.md)。
 
 后台总览提供客户端最新版本 / 强更状态与平台更新。客户端强更时服务端暂停跑步自动化；平台支持稳定 Release 检查、一键更新、闲时自动安装与失败回滚。配置与发布方式见 [版本门禁与平台更新](./docs/updates.md)。
 
+<a id="preview"></a>
+
+## 🖼 界面预览
+
+浅色工作区、深色侧栏与靛蓝主色，保留卡片布局。液态玻璃、轻量悬停反馈和统一线性图标贯穿后台与客户前台；窄屏自动切换紧凑列表和底部导航。
+
 <p align="center">
-  <img src="./docs/assets/overview.png" alt="EasyRun 运行总览" width="720" />
+  <img src="./docs/assets/overview.png" alt="EasyRun v0.1.2 管理后台运行总览，使用虚构演示数据" width="100%" />
 </p>
+
+<details>
+  <summary>查看自动任务与移动端</summary>
+  <p><img src="./docs/assets/tasks.png" alt="桌面端自动任务列表，使用虚构演示数据" width="100%" /></p>
+  <p align="center"><img src="./docs/assets/mobile-tasks.png" alt="移动端自动任务卡片与底部导航，使用虚构演示数据" width="320" /></p>
+</details>
+
+> 截图使用独立演示环境中的虚构账号与记录，不含真实客户数据。悬停效果仅在适用的指针设备上启用，尊重系统「减少动态效果」偏好；不支持背景模糊的浏览器使用清晰的静态样式。
+
+**v0.1.2 · 界面焕新**：统一配色与路线形标志，优化总览指标、任务列表、执行日志和移动端排版，精简重复说明。详见 [更新日志](./CHANGELOG.md)。
+
+<a id="features"></a>
 
 ## 🚀 项目亮点
 
-### 管理后台与可选客户前台
+### 工作台与客户前台
+
+- 运行总览、账号矩阵、路线测试、自动任务、执行日志各司其职，长列表分页展示。
+- 桌面端紧凑列表，窄屏自动重排；搜索下拉、弹窗与触控按钮保持一致的交互。
+- 明确区分运行、成功、等待和失败状态；长名称与记录号截断时可悬停查看完整内容。
 
 - 首次初始化设置超管密码，选择个人 / 商业模式；旧数据自动归属超管。
 - 客户自助注册、可选邮箱验证码，支持 SMTP、SMTPS、STARTTLS 邮件配置。
@@ -148,9 +174,21 @@ flowchart LR
 → 完成结算 → 保存执行结果与远端记录号
 ```
 
+<a id="quick-start"></a>
+
 ## 📦 快速开始
 
-### 方式一：Docker Compose
+### 选择部署方式
+
+| 方式 | 适用场景 | 入口 |
+|---|---|---|
+| Docker Compose | 新部署，同时启动应用和数据库 | 下方快速开始 |
+| 完整发行包 | 已有 PostgreSQL，不想安装 Go / Node.js | [下载最新版本](https://github.com/Zolohacker/EasyRun/releases/latest) |
+| Windows 本地源码 | 本地开发与调试 | 下方本地运行说明 |
+
+发行包提供 Windows amd64、Linux amd64 / arm64，包含前端、模型和对应平台运行库，附 `checksums.txt`。解压后配置数据库连接，从解压目录启动；启用在线更新还需独立守护进程，见 [启动与更新说明](./docs/updates.md#启动方式)。Linux 使用 glibc 环境并准备 `libstdc++6`、`libgomp1`；arm64 本地推理尚待真实硬件验收。
+
+### Docker Compose
 
 准备环境：Docker Engine 24+、Docker Compose v2。
 
@@ -177,11 +215,13 @@ COOKIE_SECURE=false
 docker compose up -d --build
 ```
 
-访问：<http://127.0.0.1:8080/>
+访问：[本地控制台](http://127.0.0.1:8080/)。
 
-### 方式二：Windows 本地运行
+首次设置顺序：**设置超管 → 选择使用模式 → 在系统配置添加地图 Key → 添加账号**。初始化后请备份数据库、`data/account-master.key` 与钱包助记词；不要删除持久卷进行升级。
 
-准备环境：Go 1.23+、Node.js 20+、PostgreSQL 17 客户端工具。
+### Windows 本地源码运行
+
+准备环境：Go 1.23+、PostgreSQL 17 客户端工具；启用本地人脸推理需可用的 GCC / CGO 工具链。仓库已包含构建后的前端，仅修改前端时需要 Node.js 20+。
 
 ```powershell
 git clone https://github.com/Zolohacker/EasyRun.git
@@ -190,7 +230,10 @@ Set-Location EasyRun
 # 首次初始化本地数据库；主密钥由应用首次启动自动生成
 .\scripts\local-db.ps1 init
 
-# 构建并启动
+# 使用本地推理时启用 CGO（需先安装 GCC）
+$env:CGO_ENABLED = '1'
+
+# 构建并以守护模式启动
 .\scripts\start-local.ps1 -Rebuild
 ```
 
@@ -207,12 +250,24 @@ Set-Location EasyRun
 
 ## 🧭 基本使用
 
-1. 首次访问先设置超级管理员，选择使用模式，再打开「账号矩阵」添加账号。商业模式可选启用客户前台。
-2. 登录完成后等待计划、校园区域和账号资料自动同步。
-3. 在「路线测试」验证区域路网、目标距离和候选路线。
-4. 在「自动任务」选择账号、计划、区域、调度时间和运行距离。
-5. 在「运行总览」查看排期、执行状态与服务健康度。
-6. 在账号历史记录中查看单次详情、预检结论和地图轨迹。
+| 页面 | 主要用途 |
+|---|---|
+| 运行总览 | 查看账号就绪情况、排期、执行状态、服务健康与版本更新 |
+| 账号矩阵 | 添加账号、维护会话、查看计划进度与历史详情；管理人脸设置与修改链接 |
+| 路线测试 | 查看校园区域、候选路线和距离；在地图上检查规划结果 |
+| 自动任务 | 按账号选择计划、区域和时间，配置距离及每日 / 每周额度 |
+| 执行日志 | 按页查看运行结果、远端记录号及失败原因 |
+| 系统配置 | 管理地图 Key 与各自 QPS、Worker、使用模式、客户入口及邮件服务 |
+| 计费管理 / 用户管理 | 管理价格、充值方式、钱包归集、用户及管理员权限 |
+
+登录成功后，计划、区域和账号资料自动同步。客户前台仅展示本人数据和已启用的功能；后台可选择是否开放注册与充值方式。
+
+### 升级与备份
+
+- 超管在「运行总览 → 平台更新」检查稳定版，支持一键更新及失败回滚；闲时自动安装默认关闭。
+- 在线安装需要守护模式且任务、钱包事务空闲；容器部署通过重建镜像更新。
+- **本次 v0.1.2 不新增数据库迁移**，不改动账号、任务、余额、钱包和模型配置。升级前仍应备份数据库和主密钥。
+- [首次启动与数据备份](./docs/first-run.md) · [版本检查、更新与回滚](./docs/updates.md) · [客户前台、计费与钱包](./docs/portal.md)
 
 ## ⚙️ 配置参考
 
@@ -234,7 +289,6 @@ Set-Location EasyRun
 | `AUTOMATION_WORKER_CONCURRENCY` | `1` | 每个 Worker 的初始并发数 |
 | `AUTOMATION_RUN_TIMEOUT` | `90m` | 单次任务总超时 |
 | `PROTOCOL_BASE_URL` | 见示例配置 | 协议服务根地址 |
-| `PROTOCOL_ENVIRONMENT` | `9` | 客户端环境值 |
 | `PROTOCOL_TIMEOUT` | `20s` | 单个协议请求超时 |
 | `FACE_DETECT_PIXEL_SIZE` | `320` | 检测输入级别：160、320 或 640 |
 
@@ -334,8 +388,11 @@ go test -race ./internal/mapapi
 - [ ] 完整端到端测试与演示数据模式
 - [ ] Prometheus 指标与 OpenTelemetry 链路追踪
 - [x] 移动端底部导航、卡片列表、表单弹层与充值二维码
+- [x] 液态玻璃主题、统一图标、紧凑列表与减少动态效果适配
 - [ ] 国际化
 - [x] 公开源码、自动主密钥、随附模型与首次部署指南
+
+<a id="contributing"></a>
 
 ## 🤝 参与贡献
 
@@ -343,7 +400,7 @@ go test -race ./internal/mapapi
 
 1. Fork 本仓库并创建功能分支：`git switch -c feat/your-feature`
 2. 保持提交聚焦，并为行为变更补充测试
-3. 确保 `go test ./...` 与 `npm run build` 通过
+3. 确保 `go test ./...`、`go vet ./...`、前端 `npm test` 与 `npm run build` 通过
 4. 提交 Pull Request，说明动机、实现和验证方式
 
 ## 📄 许可证与项目状态

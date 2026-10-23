@@ -1,0 +1,128 @@
+/* Liquid glass is a surface treatment, not a layout system. */
+:root, .customer-shell {
+  --muted: #59677d;
+  --glass-ease: cubic-bezier(.22,1,.36,1);
+  --glass-border: rgba(255,255,255,.78);
+  --glass-fill: linear-gradient(135deg,rgba(255,255,255,.84),rgba(255,255,255,.58) 48%,rgba(255,255,255,.72));
+  --glass-shadow: inset 0 1px 0 rgba(255,255,255,.98), inset 0 -1px 0 rgba(104,125,177,.09), 0 8px 30px rgba(59,79,129,.065), 0 2px 6px rgba(59,79,129,.03);
+}
+body { background: #eaf0f8; }
+#root { position: relative; isolation: isolate; min-height: 100vh; }
+.ambient-lights { position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; background: linear-gradient(130deg,#e9edf7,#f0f4f9 55%,#e9eef8); }
+.ambient-lights > span { position: absolute; border-radius: 50%; }
+.ambient-lights > span:nth-child(1) { width: 85vw; height: 90vh; right: -14vw; top: -34vh; background: radial-gradient(ellipse,rgba(142,160,235,.48),rgba(178,193,244,.21) 42%,transparent 70%); }
+.ambient-lights > span:nth-child(2) { width: 66vw; height: 90vh; right: -12vw; top: 34vh; background: radial-gradient(ellipse,rgba(146,203,219,.30),rgba(189,222,236,.13) 45%,transparent 72%); }
+.ambient-lights > span:nth-child(3) { width: 85vw; height: 95vh; left: -12vw; bottom: -43vh; background: radial-gradient(ellipse,rgba(175,165,220,.27),rgba(209,199,234,.13) 45%,transparent 72%); }
+
+/* The bright rim and soft internal reflection remain visible at rest. */
+.panel:not(.portal-save):not(.settings-savebar), .portal-balance-card, .portal-auth-card { position: relative; }
+.panel, .portal-balance-card, .portal-auth-card {
+  isolation: isolate;
+  border: 1px solid var(--glass-border);
+  border-radius: 20px;
+  background: var(--glass-fill);
+  box-shadow: var(--glass-shadow);
+  -webkit-backdrop-filter: blur(24px) saturate(135%);
+  backdrop-filter: blur(24px) saturate(135%);
+  transition: box-shadow .45s var(--glass-ease), border-color .35s ease, transform .45s var(--glass-ease);
+}
+.panel::before, .portal-balance-card::before, .portal-auth-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  z-index: -1;
+  pointer-events: none;
+  opacity: .45;
+  background: radial-gradient(460px circle at var(--glass-x,20%) var(--glass-y,0%),rgba(255,255,255,.96),rgba(255,255,255,.20) 38%,transparent 72%), linear-gradient(125deg,rgba(255,255,255,.45),transparent 35%,rgba(182,202,240,.08) 65%,rgba(255,255,255,.34));
+  transition: opacity .4s ease;
+}
+.panel[data-glass-active]::before, .portal-balance-card[data-glass-active]::before, .portal-auth-card[data-glass-active]::before { opacity: .92; }
+.panel[data-glass-active], .portal-balance-card[data-glass-active], .portal-auth-card[data-glass-active] {
+  border-color: rgba(255,255,255,.98);
+  box-shadow: inset 0 1px 0 #fff, inset 0 -1px 0 rgba(120,143,194,.12), 0 16px 42px rgba(67,87,142,.10), 0 3px 9px rgba(67,87,142,.035);
+}
+.overview-command { background: linear-gradient(115deg,rgba(255,255,255,.82),rgba(235,241,255,.42) 66%,rgba(255,255,255,.7)); }
+.overview-live-ring { background: linear-gradient(135deg,rgba(255,255,255,.72),rgba(226,233,253,.35)); border-color: rgba(255,255,255,.8); box-shadow: inset 0 1px 0 #fff,0 5px 16px rgba(79,96,160,.045); }
+.overview-kpi-icon, .health-icon, .settings-card-icon { border: 1px solid rgba(255,255,255,.9); box-shadow: inset 0 1px 0 rgba(255,255,255,.96),0 4px 10px rgba(83,102,151,.05); }
+.overview-kpi-icon { background: linear-gradient(145deg,rgba(232,238,255,.88),rgba(249,251,255,.55)); }
+.overview-kpi.cyan .overview-kpi-icon { background: linear-gradient(145deg,rgba(222,237,251,.88),rgba(247,251,255,.55)); }
+.overview-kpi.violet .overview-kpi-icon { background: linear-gradient(145deg,rgba(226,241,234,.88),rgba(248,253,250,.55)); }
+.overview-kpi.amber .overview-kpi-icon { background: linear-gradient(145deg,rgba(246,237,218,.88),rgba(255,252,245,.55)); }
+
+/* A smoked-glass navigation rail anchors the lighter workspace. */
+.sidebar { background: linear-gradient(155deg,rgba(32,43,71,.94),rgba(29,39,62,.97) 65%,rgba(37,49,77,.95)); border-right: 1px solid rgba(255,255,255,.2); box-shadow: 10px 0 40px rgba(37,51,85,.07),inset -1px 0 0 rgba(255,255,255,.05); -webkit-backdrop-filter: blur(30px); backdrop-filter: blur(30px); }
+.brand-mark, .customer-shell .brand-mark, .portal-brand > span { background: linear-gradient(140deg,rgba(149,164,247,.96),#6476d7 56%,#5362b8); border: 1px solid rgba(255,255,255,.42); box-shadow: inset 0 1px 1px rgba(255,255,255,.6),inset 0 -2px 4px rgba(44,59,130,.2),0 6px 18px rgba(14,25,63,.16); }
+.nav-item { border: 1px solid transparent; transition: background .25s ease, box-shadow .35s ease, transform .35s var(--glass-ease),border-color .25s ease; }
+.nav-item.active { background: linear-gradient(120deg,rgba(146,168,231,.23),rgba(126,150,224,.12)); border-color: rgba(198,212,255,.22); box-shadow: inset 0 1px 0 rgba(255,255,255,.13),0 4px 14px rgba(5,15,36,.09); }
+.nav-item.active b { background: rgba(192,207,255,.17); }
+.nav-item svg, .button svg:not(.spin), .icon-button svg:not(.spin), .overview-kpi-icon svg { transition: transform .35s var(--glass-ease); }
+.system-card { background: rgba(255,255,255,.035); border-color: rgba(219,229,255,.12); box-shadow: inset 0 1px 0 rgba(255,255,255,.06); }
+
+/* Small controls feel like polished, tactile glass rather than floating cards. */
+.button, .icon-button, .mini-button { position: relative; transition: transform .25s var(--glass-ease),box-shadow .3s var(--glass-ease),background .25s,border-color .25s; }
+.button.primary { border-color: rgba(255,255,255,.25); background: linear-gradient(145deg,#5668ce,#485bbf); box-shadow: inset 0 1px 0 rgba(255,255,255,.26),inset 0 -1px 0 rgba(24,43,117,.18),0 4px 11px rgba(64,81,171,.18); }
+.button.primary:hover:not(:disabled) { background: linear-gradient(145deg,#5c70d8,#4c60c7); }
+.button.subtle, .button.cyan, .icon-button, .mini-button { border-color: rgba(112,135,187,.2); background: linear-gradient(135deg,rgba(255,255,255,.9),rgba(248,250,255,.68)); box-shadow: inset 0 1px 0 #fff,0 2px 5px rgba(64,81,130,.045); }
+.button.cyan { color: #4a5cae; background: linear-gradient(135deg,rgba(234,239,255,.9),rgba(246,249,255,.6)); }
+.button:disabled, .icon-button:disabled, .mini-button:disabled { transform: none; box-shadow: none; }
+.portal-page-tabs, .portal-auth-tabs { background: rgba(219,227,242,.52); border: 1px solid rgba(255,255,255,.68); box-shadow: inset 0 1px 4px rgba(82,101,145,.035); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
+.portal-page-tabs > button, .portal-auth-tabs > button { transition: color .2s,background .2s,box-shadow .3s,transform .25s var(--glass-ease); }
+.portal-page-tabs > button.active, .portal-auth-tabs > button.active { background: linear-gradient(135deg,rgba(255,255,255,.96),rgba(255,255,255,.65)); box-shadow: inset 0 1px 0 #fff,0 3px 10px rgba(64,83,128,.10); }
+input, select, textarea, .search-select > button { background-color: rgba(255,255,255,.68); border-color: rgba(146,165,203,.25); box-shadow: inset 0 1px 2px rgba(80,100,145,.025); transition: border-color .25s,box-shadow .25s,background-color .25s; }
+input:focus, textarea:focus, .search-select.is-open > button { background-color: rgba(255,255,255,.95); border-color: #9baae4; box-shadow: 0 0 0 3px rgba(100,121,201,.09); }
+.search-select-popup { background: rgba(250,252,255,.94); border: 1px solid rgba(255,255,255,.95); -webkit-backdrop-filter: blur(28px) saturate(130%); backdrop-filter: blur(28px) saturate(130%); box-shadow: inset 0 1px 0 #fff,0 16px 48px rgba(41,61,110,.15),0 0 0 1px rgba(118,138,184,.10); }
+.account-list-head { background: rgba(242,246,252,.54); }
+.account-list-row, .main-stage .job-row { background: transparent; transition: background-color .25s; }
+.account-list-row:hover, .main-stage .job-row:hover { background: rgba(255,255,255,.52); }
+.list-pagination { background: rgba(255,255,255,.25); border-color: rgba(133,153,192,.15); }
+
+/* Dialogs use denser glass so form content stays readable over a busy page. */
+.modal-backdrop { background: rgba(30,43,74,.22); -webkit-backdrop-filter: blur(10px) saturate(95%); backdrop-filter: blur(10px) saturate(95%); }
+.modal, .wallet-backup-modal { background: linear-gradient(140deg,rgba(255,255,255,.96),rgba(245,249,255,.93)); border: 1px solid rgba(255,255,255,.86); box-shadow: inset 0 1px 0 #fff,0 32px 90px rgba(28,45,82,.20),0 5px 15px rgba(28,45,82,.07); -webkit-backdrop-filter: blur(32px); backdrop-filter: blur(32px); }
+.app-modal > .modal-head, .wallet-backup-modal .modal-head { background: rgba(255,255,255,.4); border-bottom-color: rgba(133,153,192,.15); }
+.portal-save, .settings-savebar { background: rgba(251,253,255,.94); }
+.portal-save::before, .settings-savebar::before { content: none; }
+.portal-auth { background: transparent; }
+.portal-auth-main { padding: 44px 28px; }
+.portal-auth-card { width: 100%; max-width: 510px; padding: 34px; box-sizing: border-box; }
+.setup-screen .portal-auth-card { max-width: 590px; }
+.portal-auth-aside { background: linear-gradient(145deg,rgba(33,44,73,.96),rgba(31,42,67,.98)); }
+.portal-balance-card { background: linear-gradient(120deg,rgba(220,230,255,.67),rgba(244,248,255,.62)); }
+
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  .overview-kpi[data-glass-active], .overview-command[data-glass-active], .portal-balance-card[data-glass-active] { transform: translateY(-3px); }
+  .overview-kpi[data-glass-active] .overview-kpi-icon svg { transform: translateY(-1px) scale(1.08); }
+  .nav-item:hover { transform: translateX(3px); border-color: rgba(203,217,255,.18); background: rgba(171,193,255,.10); }
+  .nav-item:hover svg { transform: scale(1.08); }
+  .button:hover:not(:disabled), .icon-button:hover:not(:disabled), .mini-button:hover:not(:disabled) { transform: translateY(-2px); box-shadow: inset 0 1px 0 rgba(255,255,255,.7),0 7px 18px rgba(64,81,142,.13); }
+  .button.primary:hover:not(:disabled) { box-shadow: inset 0 1px 0 rgba(255,255,255,.34),0 8px 22px rgba(64,81,171,.26); }
+  .button:hover:not(:disabled) svg:not(.spin) { transform: translateX(1px); }
+  .button:active:not(:disabled), .icon-button:active:not(:disabled), .mini-button:active:not(:disabled) { transform: translateY(0) scale(.975); transition-duration: .1s; }
+  .portal-page-tabs > button:hover:not(.active), .portal-auth-tabs > button:hover:not(.active) { background: rgba(255,255,255,.36); transform: translateY(-1px); }
+  .page-stack { animation: glass-enter .48s var(--glass-ease) both; }
+  .modal { animation: glass-dialog .3s var(--glass-ease) both; }
+}
+@keyframes glass-enter { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: none; } }
+@keyframes glass-dialog { from { opacity: 0; transform: translateY(8px) scale(.985); } to { opacity: 1; transform: none; } }
+
+@media (max-width: 760px) {
+  .panel, .portal-balance-card { border-radius: 18px; -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
+  .main-stage > .topbar { background: rgba(239,244,252,.74); border-bottom-color: rgba(255,255,255,.9); box-shadow: 0 1px 12px rgba(64,85,140,.035); -webkit-backdrop-filter: blur(24px) saturate(140%); backdrop-filter: blur(24px) saturate(140%); }
+  .mobile-bottom-nav { background: rgba(250,252,255,.78); border-top: 1px solid rgba(255,255,255,.95); box-shadow: 0 -6px 24px rgba(66,87,137,.065),inset 0 1px 0 #fff; -webkit-backdrop-filter: blur(28px) saturate(150%); backdrop-filter: blur(28px) saturate(150%); }
+  .mobile-bottom-nav > button.active { background: linear-gradient(135deg,rgba(224,233,255,.9),rgba(243,247,255,.6)); box-shadow: inset 0 1px 0 rgba(255,255,255,.9),0 2px 6px rgba(91,113,171,.08); }
+  .portal-auth-main { padding: 24px 16px 40px; }
+  .portal-auth-card { padding: 24px 20px; box-sizing: border-box; }
+  .modal.app-modal { border-radius: 22px 22px 0 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .panel, .portal-balance-card, .portal-auth-card, .nav-item, .button, .icon-button, .mini-button, .page-stack, .modal { animation: none !important; transition: none !important; transform: none !important; }
+  .panel::before, .portal-balance-card::before, .portal-auth-card::before { transition: none; }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .panel, .portal-balance-card, .portal-auth-card, .modal, .search-select-popup, .mobile-bottom-nav, .main-stage > .topbar { background: #f9fbff; -webkit-backdrop-filter: none; backdrop-filter: none; }
+  .ambient-lights > span, .panel::before, .portal-balance-card::before, .portal-auth-card::before { display: none; }
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .panel, .portal-balance-card, .portal-auth-card, .modal, .search-select-popup { background: #f7f9fe; }
+}

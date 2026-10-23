@@ -3,7 +3,6 @@ import {ArrowDownToLine,RefreshCw,RotateCcw,Settings2,ShieldAlert,ShieldCheck} f
 import Modal from './Modal'
 import {portalRequest,type PortalUser} from './portal'
 import {clientVersionLabel,updatePhaseLabel,updating,type Versions} from './versions'
-import './versions.css'
 
 const time=(value?:string)=>value?new Date(value).toLocaleString('zh-CN',{hour12:false}):'尚未检查'
 
@@ -49,12 +48,12 @@ export default function VersionManagementPanel({user,notify}:{user:PortalUser;no
   return <section className="version-grid" aria-label="版本与更新">
     <article className={`panel version-card ${!client.automation_allowed?'version-blocked':''}`}>
       <div className="version-heading"><h2>闪动校园版本</h2><span className={`status-pill ${client.automation_allowed?'ok':'warn'}`}>{clientVersionLabel(client)}</span></div>
-      <div className="version-number"><strong>{client.latest_version||'待核实'}</strong><span>{client.have_update?'接口返回的最新版本':'当前渠道可用版本'}</span></div>
+      <div className="version-number"><strong>{client.latest_version||'待核实'}</strong><span>{client.have_update?'最新版本':'当前可用版本'}</span></div>
       <dl className="version-facts"><div><dt>当前适配</dt><dd>{client.current_version} <small>Build {client.current_build}</small></dd></div>{client.support_version&&<div><dt>最低支持</dt><dd>{client.support_version}</dd></div>}<div><dt>最后检查</dt><dd>{time(client.checked_at)}</dd></div></dl>
       <p className={`version-gate ${client.automation_allowed?'allowed':''}`} role={client.automation_allowed?'status':'alert'}>{client.automation_allowed?<ShieldCheck/>:<ShieldAlert/>}<span>{client.reason}</span></p>
       {client.last_error&&<p className="version-error">{client.last_error}</p>}
       {client.description&&<details className="version-notes"><summary>{client.title||'客户端更新说明'}</summary><p>{client.description}</p></details>}
-      <div className="version-footer"><span>每 5 分钟检查 · 服务端执行门禁</span><button className="button subtle" disabled={!!busy} onClick={()=>void check('client')}><RefreshCw className={busy==='client'?'spin':''}/>检查版本</button></div>
+      <div className="version-footer"><span>每 5 分钟自动检查</span><button className="button subtle" disabled={!!busy} onClick={()=>void check('client')}><RefreshCw className={busy==='client'?'spin':''}/>检查版本</button></div>
     </article>
     <article className="panel version-card">
       <div className="version-heading"><h2>EasyRun 平台更新</h2><span className={`status-pill ${platform.has_update||platform.last_error?'warn':'ok'}`}>{pending?updatePhaseLabel(platform.phase):platform.last_error?'更新源待就绪':platform.has_update?'发现新版本':'当前版本'}</span></div>
@@ -71,9 +70,9 @@ export default function VersionManagementPanel({user,notify}:{user:PortalUser;no
     {modal&&<Modal title={modal==='settings'?'平台更新设置':modal==='install'?'确认更新平台':'确认回滚平台'} onClose={()=>{if(!busy){setModal(null);setPassword('')}}}>
       <form className="version-settings" onSubmit={event=>void submit(event)}>
         {modal==='settings'?<>
-          <p className="portal-hint">从公开仓库 {platform.settings.repository} 获取稳定 Release，免填访问凭据。</p>
+          <p className="portal-hint">更新源：{platform.settings.repository}</p>
           <label className="version-checkbox"><input type="checkbox" checked={auto} onChange={e=>setAuto(e.target.checked)} disabled={!!platform.capability_reason}/>发现稳定版后，仅在任务空闲时自动安装</label>
-          <p className="portal-hint">运行中或排队任务不会被平台更新打断。发行包须通过 SHA-256 校验，重启验收失败将自动回滚。客户端强更门禁始终独立生效。</p>
+          <p className="portal-hint">更新不打断现有任务。安装前校验文件，重启失败自动回滚。</p>
         </>:<p className="portal-hint">{modal==='install'?`将下载 ${platform.latest_version} 并校验后安装。`:'将恢复上一份通过校验的程序备份。'} 仅在无运行/排队任务时执行；期间暂停新任务，更新程序不会替换数据库、钱包、配置和模型文件。</p>}
         <label>当前超级管理员密码<input type="password" autoComplete="current-password" required value={password} onChange={e=>setPassword(e.target.value)}/></label>
         <button className="button primary" type="submit" disabled={!!busy}>{busy==='action'?'处理中…':modal==='settings'?'保存配置':'确认并执行'}</button>

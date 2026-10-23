@@ -5,11 +5,11 @@
 .app-modal > .modal-head { align-items: center; flex: none; gap: 14px; margin: 0; padding: 18px 22px; border-bottom: 1px solid var(--line); }
 .app-modal > .modal-head h2 { margin: 0; min-width: 0; overflow-wrap: anywhere; font-size: 19px; line-height: 1.5; }
 .app-modal > .modal-head .icon-button { flex: none; width: 44px; height: 44px; }
-.modal-body { min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 22px; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: #34574a transparent; }
+.modal-body { min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 22px; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: #d2d9e4 transparent; }
 .deposit-qr { display: grid; justify-items: center; gap: 9px; min-width: 0; }
 .deposit-qr-code { width: min(100%, 236px); padding: 6px; border-radius: 12px; background: #fff; line-height: 0; }
 .deposit-qr-code svg { display: block; max-width: 100%; width: 100%; height: auto; }
-.deposit-qr strong { font-size: 15px; color: #d9f1e4; }
+.deposit-qr strong { font-size: 15px; color: #232d40; }
 .deposit-qr > span { text-align: center; font-size: 13px; line-height: 1.6; color: var(--muted); }
 .deposit-address { display: grid; min-width: 0; gap: 8px; }
 .deposit-address > span { font-size: 13px; color: var(--muted); }
@@ -17,13 +17,13 @@
 .deposit-pending { display: grid; justify-items: center; gap: 14px; padding: 18px 0; text-align: center; }
 .deposit-pending > svg { width: 36px; height: 36px; color: var(--cyan); }
 .deposit-pending p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.8; }
-.deposit-scan-panel { display: grid; gap: 12px; min-width: 0; padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: #062016; }
+.deposit-scan-panel { display: grid; gap: 12px; min-width: 0; padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: #ffffff; }
 .deposit-scan-panel strong { font-size: 15px; line-height: 1.6; }
 .deposit-scan-panel p { margin: 5px 0 0; font-size: 13px; line-height: 1.8; color: var(--muted); overflow-wrap: anywhere; }
 .deposit-scan-panel .button { width: 100%; min-height: 44px; height: auto; padding: 10px; white-space: normal; }
 .deposit-scan-panel small { color: var(--muted); font-size: 12px; }
 .deposit-scan-panel .failed, .deposit-scan-panel .portal-error { color: var(--amber); }
-.deposit-scan-panel .succeeded, .deposit-scan-credit { color: var(--green); }
+.deposit-scan-panel .succeeded, .deposit-scan-credit { color: var(--accent); }
 .deposit-scan-credit { font-size: 14px; line-height: 1.7; }
 
 @media (max-width: 760px) {
@@ -32,20 +32,20 @@
   .app-shell { display: block; }
   .app-shell > .sidebar { display: none; }
   .app-shell > .main-stage { min-width: 0; width: 100%; padding: 0 12px calc(92px + env(safe-area-inset-bottom, 0px)); }
-  .main-stage > .topbar { position: sticky; top: 0; z-index: 100; height: auto; min-height: 72px; margin: 0 -12px 14px; padding: calc(12px + env(safe-area-inset-top, 0px)) 16px 12px; gap: 12px; border-bottom: 1px solid var(--line); background: rgba(6,22,17,.96); backdrop-filter: blur(18px); }
+  .main-stage > .topbar { position: sticky; top: 0; z-index: 100; height: auto; min-height: 72px; margin: 0 -12px 14px; padding: calc(12px + env(safe-area-inset-top, 0px)) 16px 12px; gap: 12px; border-bottom: 1px solid var(--line); background: rgba(248,249,252,0.96); backdrop-filter: blur(18px); }
   .topbar > div { min-width: 0; }
   .mobile-brand-label { display: block; color: var(--muted); font-size: 11px; line-height: 1.5; letter-spacing: .04em; }
   .topbar h1 { margin: 3px 0 0; font-size: 22px; line-height: 1.35; }
   .topbar > .icon-button { flex: none; }
-  .mobile-bottom-nav { position: fixed; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); z-index: 110; left: 0; right: 0; bottom: 0; padding: 6px 6px calc(6px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid rgba(126,211,167,.19); background: rgba(5,22,16,.97); backdrop-filter: blur(20px); }
-  .mobile-bottom-nav > button { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; min-width: 0; min-height: 54px; padding: 6px 2px; border: 0; border-radius: 10px; background: none; color: #91ad9e; cursor: pointer; }
-  .mobile-bottom-nav > button.active { color: var(--green); background: rgba(98,246,170,.08); }
+  .mobile-bottom-nav { position: fixed; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); z-index: 110; left: 0; right: 0; bottom: 0; padding: 6px 6px calc(6px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid rgba(59,73,97,0.19); background: rgba(248,249,252,0.97); backdrop-filter: blur(20px); }
+  .mobile-bottom-nav > button { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; min-width: 0; min-height: 54px; padding: 6px 2px; border: 0; border-radius: 10px; background: none; color: #647084; cursor: pointer; }
+  .mobile-bottom-nav > button.active { color: var(--accent); background: rgba(79,96,202,0.08); }
   .mobile-bottom-nav svg { width: 21px; height: 21px; flex: none; }
   .mobile-bottom-nav span { font-size: 12px; line-height: 1.3; white-space: nowrap; }
-  .mobile-bottom-nav b { position: absolute; top: 1px; left: calc(50% + 8px); min-width: 17px; padding: 1px 4px; border-radius: 20px; font-size: 10px; color: #bfe9d0; background: #1b4331; border: 1px solid #315e47; }
+  .mobile-bottom-nav b { position: absolute; top: 1px; left: calc(50% + 8px); min-width: 17px; padding: 1px 4px; border-radius: 20px; font-size: 10px; color: #232d40; background: #ffffff; border: 1px solid #d2d9e4; }
   .mobile-menu-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-  .mobile-menu-grid > button { display: flex; min-width: 0; align-items: center; gap: 10px; min-height: 56px; padding: 12px; border: 1px solid var(--line); border-radius: 11px; background: #0a2119; text-align: left; color: #c2dbce; cursor: pointer; }
-  .mobile-menu-grid > button.active { color: var(--green); border-color: #62f6aa50; background: #62f6aa0b; }
+  .mobile-menu-grid > button { display: flex; min-width: 0; align-items: center; gap: 10px; min-height: 56px; padding: 12px; border: 1px solid var(--line); border-radius: 11px; background: #ffffff; text-align: left; color: #434e61; cursor: pointer; }
+  .mobile-menu-grid > button.active { color: var(--accent); border-color: rgba(79,96,202,0.314); background: rgba(79,96,202,0.043); }
   .mobile-menu-grid svg { flex: none; width: 20px; height: 20px; }
   .mobile-menu-grid span { min-width: 0; font-size: 14px; line-height: 1.5; }
   .mobile-menu-grid b { margin-left: auto; color: var(--muted); font-size: 12px; }
@@ -94,7 +94,7 @@
   .modal-body { padding: 16px 16px calc(20px + env(safe-area-inset-bottom, 0px)); scroll-padding: 16px; }
   .modal-body > .form-stack { gap: 16px; }
   .modal:not(.app-modal) { width: 100%; max-height: calc(100dvh - max(10px, env(safe-area-inset-top, 0px))); padding: 16px 16px calc(20px + env(safe-area-inset-bottom, 0px)); border-radius: 18px 18px 0 0; }
-  .wallet-backup-modal .modal-head { position: sticky; top: -16px; z-index: 2; padding: 10px 0; margin-bottom: 14px; background: #10271f; }
+  .wallet-backup-modal .modal-head { position: sticky; top: -16px; z-index: 2; padding: 10px 0; margin-bottom: 14px; background: #ffffff; }
   .wallet-mnemonic-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .search-select > button { height: 44px; font-size: 15px; }
   .search-select-popup { border-radius: 15px; padding: 9px; }
@@ -111,7 +111,7 @@
   .main-stage .account-student { grid-area: student; display: flex; flex-wrap: wrap; align-items: baseline; gap: 5px 8px; }
   .main-stage .account-student > span { display: block; color: var(--muted); font-size: 12px; }
   .main-stage .account-student b { font-size: 14px; overflow-wrap: anywhere; }
-  .main-stage .account-face-state { grid-area: face; flex-direction: column; justify-content: center; align-items: center; text-align: center; min-height: 88px; padding: 8px; gap: 7px; background: #62f6aa05; border: 1px solid var(--line); }
+  .main-stage .account-face-state { grid-area: face; flex-direction: column; justify-content: center; align-items: center; text-align: center; min-height: 88px; padding: 8px; gap: 7px; background: rgba(79,96,202,0.02); border: 1px solid var(--line); }
   .main-stage .account-face-state b { font-size: 12px; white-space: normal; }
   .main-stage .account-face-state small { font-size: 11px; }
   .main-stage .account-row-actions { grid-area: actions; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding-top: 10px; margin-top: 2px; border-top: 1px solid var(--line); }
@@ -127,9 +127,12 @@
   .summary-tile { min-width: 0; padding: 12px; min-height: 94px; grid-template-columns: 30px minmax(0, 1fr); }
   .summary-tile > div { width: 28px; height: 28px; }
   .summary-tile strong { font-size: 23px; }
-  .main-stage .job-row { position: relative; display: flex !important; flex-direction: column; align-items: stretch; gap: 9px !important; min-width: 0; padding: 14px !important; }
+  .main-stage .job-row { position: relative; display: grid !important; grid-template-columns: repeat(2, minmax(0,1fr)); grid-template-areas: "title title" "plan plan" "distance schedule" "actions actions"; align-items: start; gap: 10px 12px !important; min-width: 0; padding: 14px !important; }
   .main-stage .job-state { position: absolute; top: 14px; left: 14px; width: 32px; height: 34px; }
-  .main-stage .job-title { min-height: 38px; padding-left: 43px; }
+  .main-stage .job-title { grid-area: title; min-height: 38px; padding-left: 43px; }
+  .main-stage .job-plan { grid-area: plan; }
+  .main-stage .job-distance { grid-area: distance; }
+  .main-stage .job-schedule { grid-area: schedule; padding-top: 2px; }
   .main-stage .job-title strong { font-size: 15px; }
   .main-stage .job-row strong, .main-stage .job-row b, .main-stage .job-row small, .main-stage .job-row span, .main-stage .job-row code { white-space: normal; overflow: visible; overflow-wrap: anywhere; line-height: 1.6; }
   .main-stage .job-row .job-bind, .main-stage .job-row .job-schedule, .main-stage .job-row .job-distance { display: block; }
@@ -137,7 +140,7 @@
   .main-stage .job-bind > b { display: inline; font-size: 13px; }
   .main-stage .job-distance > b { font-size: 16px; }
   .main-stage .job-distance > small, .main-stage .job-schedule > span { display: block; margin-top: 4px; color: var(--muted); }
-  .main-stage .job-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; padding-top: 8px; }
+  .main-stage .job-actions { grid-area: actions; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; padding-top: 4px; }
   .main-stage .job-actions .mini-button { display: flex; align-items: center; justify-content: center; gap: 5px; width: 100%; height: auto; min-height: 44px; padding: 8px 5px; }
   .main-stage .job-actions .mobile-action-label { font-size: 12px; white-space: nowrap; }
   .schedule-editor-head { flex-direction: column; align-items: start; gap: 8px; }
@@ -148,7 +151,7 @@
   table.mobile-card-table { display: block; min-width: 0; width: 100%; }
   .mobile-card-table > thead { display: none; }
   .mobile-card-table > tbody { display: grid; gap: 10px; width: 100%; }
-  .mobile-card-table > tbody > tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); min-width: 0; padding: 10px; border: 1px solid var(--line); border-radius: 11px; background: #081c15; }
+  .mobile-card-table > tbody > tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); min-width: 0; padding: 10px; border: 1px solid var(--line); border-radius: 11px; background: #ffffff; }
   .mobile-card-table > tbody > tr > td { display: flex; flex-direction: column; align-items: start; gap: 5px; min-width: 0; max-width: none; padding: 8px 6px; border: 0; font-size: 14px; line-height: 1.6; white-space: normal; overflow-wrap: anywhere; }
   .mobile-card-table td[data-label]::before { content: attr(data-label); font-size: 12px; color: var(--muted); font-weight: 400; }
   .mobile-card-table td.mobile-wide-cell { grid-column: 1 / -1; }
