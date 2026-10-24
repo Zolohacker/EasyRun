@@ -10,7 +10,12 @@ import (
 )
 
 func TestContainerRuntimeIsSeparateFromData(t *testing.T) {
-	root := t.TempDir()
+	// ContainerSupervise passes a canonical root. Windows CI's temp directory
+	// can use an 8.3 alias (RUNNER~1), so match that production precondition.
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
 	for _, data := range []string{root, filepath.Dir(root), filepath.Join(root, "data")} {
 		if separateContainerData(root, data) == nil {
 			t.Fatalf("overlapping program/data directories accepted: %s", data)
