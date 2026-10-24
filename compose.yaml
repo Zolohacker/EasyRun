@@ -16,6 +16,8 @@ services:
 
   app:
     build: .
+    init: true
+    stop_grace_period: 30s
     depends_on:
       db:
         condition: service_healthy
@@ -24,6 +26,7 @@ services:
       DATABASE_URL: postgres://${POSTGRES_USER:-easyrun}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/${POSTGRES_DB:-easyrun}?sslmode=disable
       DATABASE_MAX_CONNS: 12
       EASYRUN_DATA_DIR: /app/data
+      EASYRUN_RUNTIME_DIR: /app/runtime
       # Optional legacy import only; new deployments generate and persist a key.
       ACCOUNT_MASTER_KEY: ${ACCOUNT_MASTER_KEY:-}
       MAP_API_BASE_URL: ${MAP_API_BASE_URL:-https://restapi.amap.com}
@@ -36,6 +39,7 @@ services:
       FACE_DETECT_PIXEL_SIZE: ${FACE_DETECT_PIXEL_SIZE:-320}
     volumes:
       - easyrun_data:/app/data
+      - easyrun_runtime:/app/runtime
     ports:
       - "8080:8080"
     restart: unless-stopped
@@ -43,3 +47,4 @@ services:
 volumes:
   easyrun_db:
   easyrun_data:
+  easyrun_runtime:

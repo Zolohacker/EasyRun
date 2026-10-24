@@ -87,7 +87,7 @@ const fixtureProgram = `package main
 import("encoding/json";"net/http";"os";"runtime";"time")
 var version string
 func main(){
-info:=map[string]any{"version":version,"commit":version,"built_at":"fixture","build_type":"release","os":runtime.GOOS,"arch":runtime.GOARCH,"native_face":true}
+info:=map[string]any{"version":version,"commit":version,"built_at":"fixture","build_type":"release","os":runtime.GOOS,"arch":runtime.GOARCH,"native_face":true,"container_runtime":1}
 if len(os.Args)>1&&os.Args[1]=="--version-json"{if os.Getenv("DATABASE_URL")!=""||os.Getenv("ACCOUNT_MASTER_KEY")!=""{os.Exit(9)};_ =json.NewEncoder(os.Stdout).Encode(info);return}
 if version=="3.0.0"{os.Exit(3)}
 http.HandleFunc("/healthz",func(w http.ResponseWriter,r *http.Request){_ =json.NewEncoder(w).Encode(map[string]any{"status":"ok","boot_id":os.Getenv("EASYRUN_BOOT_ID"),"build":info})})
@@ -98,6 +98,14 @@ _ =http.ListenAndServe(os.Getenv("HTTP_ADDR"),nil)
 // This is a real process/executable replacement test, including Windows EXE
 // locks. It never starts EasyRun, opens a database or touches production files.
 func TestSupervisorLiveUpgradeAndAutomaticRollback(t *testing.T) {
+	testSupervisorLiveUpgrade(t, false)
+}
+
+func TestContainerSupervisorLiveUpgradeAndAutomaticRollback(t *testing.T) {
+	testSupervisorLiveUpgrade(t, true)
+}
+
+func testSupervisorLiveUpgrade(t *testing.T, container bool) {
 	if testing.Short() {
 		t.Skip("builds standalone process fixtures")
 	}
@@ -147,11 +155,20 @@ func TestSupervisorLiveUpgradeAndAutomaticRollback(t *testing.T) {
 	if manifest.After.Version != "2.0.0" || manifest.AfterSHA == "" {
 		t.Fatal("downloaded release not verified")
 	}
-	target := filepath.Join(dir, binaryName())
-	if err := copyFile(old, target, 0755); err != nil {
-		t.Fatal(err)
+	root := dir
+	if container {
+		root, err = containerRuntimeRoot(filepath.Join(dir, "runtime"))
+		if err != nil {
+			t.Fatal(err)
+		}
 	}
-	updateDir := filepath.Join(dir, ".easyrun-update")
+	target := filepath.Join(root, binaryName())
+	if !container {
+		if err := copyFile(old, target, 0755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	updateDir := filepath.Join(root, ".easyrun-update")
 	if err := os.MkdirAll(updateDir, 0700); err != nil {
 		t.Fatal(err)
 	}
@@ -164,7 +181,13 @@ func TestSupervisorLiveUpgradeAndAutomaticRollback(t *testing.T) {
 	t.Setenv("HTTP_ADDR", addr)
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
-	go func() { done <- Supervise(ctx, target, "http://"+addr+"/healthz") }()
+	go func() {
+		if container {
+			done <- ContainerSupervise(ctx, old, root, "http://"+addr+"/healthz")
+		} else {
+			done <- Supervise(ctx, target, "http://"+addr+"/healthz")
+		}
+	}()
 	defer func() {
 		cancel()
 		select {
@@ -202,6 +225,10 @@ func TestSupervisorLiveUpgradeAndAutomaticRollback(t *testing.T) {
 		return v.Build.Version
 	}
 	wait("original fixture never started", func() bool { return healthVersion() == "1.0.0" })
+	// Bootstrap archives a pre-existing staging directory on first seeding.
+	if err := os.MkdirAll(updateDir, 0700); err != nil {
+		t.Fatal(err)
+	}
 	stage := func(from, to, fixture string) {
 		state := State{Phase: "prepared", ReleaseTag: "v" + to, Target: target, Candidate: filepath.Join(updateDir, "candidate"+filepath.Ext(binaryName())), Backup: filepath.Join(updateDir, "previous"+filepath.Ext(binaryName())), Before: buildinfo.Info{Version: from, Commit: from}, After: buildinfo.Info{Version: to, Commit: to}, UpdatedAt: time.Now().UTC()}
 		if e := copyFile(fixture, state.Candidate, 0755); e != nil {

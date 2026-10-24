@@ -23,9 +23,9 @@ func runningInContainer() bool {
 	return false
 }
 
-func deploymentCapability(supervised, container bool) string {
-	if container {
-		return "当前为容器部署，请在宿主机更新镜像并重建应用容器；此处仍可检查发行版本"
+func deploymentCapability(supervised, container, managed bool) string {
+	if container && !managed {
+		return "当前容器部署尚未启用持久化程序卷，请先按新版部署配置重建一次应用容器；此后可在网页更新平台程序"
 	}
 	if !supervised {
 		return "当前不是内置守护启动模式，可检查版本；请使用 start-local 或 --supervise 启动以在线安装和回滚"

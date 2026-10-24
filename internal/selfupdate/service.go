@@ -54,6 +54,7 @@ type Status struct {
 	CanInstall       bool           `json:"can_install"`
 	CanRollback      bool           `json:"can_rollback"`
 	CapabilityReason string         `json:"capability_reason"`
+	DeploymentMode   string         `json:"deployment_mode"`
 	Phase            string         `json:"phase"`
 	Message          string         `json:"message"`
 	Settings         Settings       `json:"settings"`
@@ -112,7 +113,18 @@ DO $$ BEGIN IF EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schem
 			return nil, err
 		}
 	}
-	s.capability = deploymentCapability(os.Getenv("EASYRUN_SUPERVISED") == "1", runningInContainer())
+	supervised, container, managed := os.Getenv("EASYRUN_SUPERVISED") == "1", runningInContainer(), managedContainerRuntime(s.exe)
+	s.capability = deploymentCapability(supervised, container, managed)
+	s.status.DeploymentMode = "standalone"
+	if supervised {
+		s.status.DeploymentMode = "supervised"
+	}
+	if container {
+		s.status.DeploymentMode = "container"
+		if supervised && managed {
+			s.status.DeploymentMode = "container_managed"
+		}
+	}
 	_ = s.installCapability()
 	if state, e := readState(s.statePath); e == nil && state.Target == s.exe && state.Phase == "downloading" {
 		state.Phase, state.Message = "failed", "上次准备更新被中断，可重新发起更新"
@@ -340,6 +352,9 @@ func (s *Service) prepare(ctx context.Context, release *Release, state *State) e
 	}
 	if err := validateBuild(info, release.Tag, buildinfo.Current()); err != nil {
 		return err
+	}
+	if s.status.DeploymentMode == "container_managed" && info.ContainerRuntime != buildinfo.Current().ContainerRuntime {
+		return errors.New("发行包与当前容器守护协议不兼容，请通过更新镜像升级；当前程序保持不变")
 	}
 	state.After = info
 	state.AfterSHA, err = fileHash(state.Candidate)

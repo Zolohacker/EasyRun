@@ -41,14 +41,27 @@ func main() {
 	}
 	runCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	if len(os.Args) == 3 && os.Args[1] == "--supervise" {
+	containerMode := len(os.Args) == 2 && os.Args[1] == "--container-supervise"
+	if containerMode || len(os.Args) == 3 && os.Args[1] == "--supervise" {
 		addr := os.Getenv("HTTP_ADDR")
 		if addr == "" {
 			addr = ":8080"
 		}
 		health, err := selfupdate.HealthURL(addr)
 		if err == nil {
-			err = selfupdate.Supervise(runCtx, os.Args[2], health)
+			if containerMode {
+				var image string
+				image, err = os.Executable()
+				root := os.Getenv("EASYRUN_RUNTIME_DIR")
+				if root == "" {
+					root = "/app/runtime"
+				}
+				if err == nil {
+					err = selfupdate.ContainerSupervise(runCtx, image, root, health)
+				}
+			} else {
+				err = selfupdate.Supervise(runCtx, os.Args[2], health)
+			}
 		}
 		if err != nil {
 			slog.Error("platform supervisor stopped", "error", err)

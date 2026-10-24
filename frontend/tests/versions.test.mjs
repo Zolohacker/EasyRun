@@ -7,7 +7,7 @@ const source=new URL('../src/versions.ts',import.meta.url)
 const compiled=ts.transpileModule(readFileSync(source,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText
 const loaded={exports:{}}
 new Function('require','module','exports',compiled)(createRequire(source),loaded,loaded.exports)
-const {clientVersionLabel,updatePhaseLabel,updating}=loaded.exports
+const {clientVersionLabel,platformUpdateModeLabel,updatePhaseLabel,updating}=loaded.exports
 test('forced update takes priority over stale, unknown and maintenance labels',()=>{
   assert.equal(clientVersionLabel({force_update:true,known:false,automation_allowed:false}),'需要强制更新')
   assert.equal(clientVersionLabel({known:false}),'状态待核实')
@@ -19,4 +19,10 @@ test('all download and supervisor verification stages remain pending',()=>{
   for(const phase of ['downloading','prepared','installing','verifying'])assert.equal(updating(phase),true)
   for(const phase of ['',undefined,'succeeded','failed','rolled_back'])assert.equal(updating(phase),false)
   assert.equal(updatePhaseLabel('rolled_back'),'已回滚')
+})
+test('container update mode distinguishes managed volumes from legacy images',()=>{
+  assert.equal(platformUpdateModeLabel('container_managed'),'容器内持久化更新')
+  assert.equal(platformUpdateModeLabel('container'),'容器镜像更新')
+  assert.equal(platformUpdateModeLabel('supervised'),'守护进程更新')
+  assert.equal(platformUpdateModeLabel(undefined),'待确认')
 })

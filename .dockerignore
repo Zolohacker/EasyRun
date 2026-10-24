@@ -1,6 +1,9 @@
 .git
 .env
 .env.local
+.env.*
+!.env.example
+.gh-project.ps1
 .local
 .pgtest
 artifacts

@@ -83,7 +83,7 @@ func HealthURL(addr string) (string, error) {
 	}
 	return "http://" + net.JoinHostPort(host, port) + "/healthz", nil
 }
-func startServer(target string) (*exec.Cmd, <-chan error, string, error) {
+func startServer(target string, overrides ...string) (*exec.Cmd, <-chan error, string, error) {
 	var nonce [16]byte
 	if _, err := rand.Read(nonce[:]); err != nil {
 		return nil, nil, "", err
@@ -94,11 +94,12 @@ func startServer(target string) (*exec.Cmd, <-chan error, string, error) {
 	configureChild(cmd)
 	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
 	for _, entry := range os.Environ() {
-		if !strings.HasPrefix(entry, "EASYRUN_SUPERVISED=") && !strings.HasPrefix(entry, "EASYRUN_BOOT_ID=") {
+		if !strings.HasPrefix(entry, "EASYRUN_SUPERVISED=") && !strings.HasPrefix(entry, "EASYRUN_BOOT_ID=") && !strings.HasPrefix(entry, "EASYRUN_CONTAINER_MANAGED=") && !strings.HasPrefix(entry, "EASYRUN_CONTAINER_RUNTIME=") {
 			cmd.Env = append(cmd.Env, entry)
 		}
 	}
 	cmd.Env = append(cmd.Env, "EASYRUN_SUPERVISED=1", "EASYRUN_BOOT_ID="+id)
+	cmd.Env = append(cmd.Env, overrides...)
 	if err := cmd.Start(); err != nil {
 		return nil, nil, "", err
 	}
@@ -115,6 +116,22 @@ func stopChild(cmd *exec.Cmd, done <-chan error) {
 	case <-done:
 	case <-time.After(10 * time.Second):
 	}
+}
+
+// Container stop must still give the application time to finish HTTP requests
+// and close its database pool. Failed update candidates use stopChild instead.
+func shutdownChild(cmd *exec.Cmd, done <-chan error) {
+	if cmd == nil || cmd.Process == nil {
+		return
+	}
+	if requestChildShutdown(cmd.Process) == nil {
+		select {
+		case <-done:
+			return
+		case <-time.After(20 * time.Second):
+		}
+	}
+	stopChild(cmd, done)
 }
 func verifyHealth(ctx context.Context, address, bootID string, info buildinfo.Info, done <-chan error, requireFace bool) error {
 	u, err := url.Parse(address)
@@ -196,6 +213,13 @@ func restoreBinary(state State) error {
 // The supervisor runs from a separate executable so Windows never has to
 // replace a running EXE. It keeps the same environment and working directory.
 func Supervise(ctx context.Context, target, address string) error {
+	return supervise(ctx, target, address, nil)
+}
+
+func supervise(ctx context.Context, target, address string, childEnv []string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	abs, err := filepath.Abs(target)
 	if err != nil {
 		return err
@@ -233,7 +257,7 @@ func Supervise(ctx context.Context, target, address string) error {
 		close(kick)
 		done = kick
 	} else {
-		cmd, done, _, err = startServer(target)
+		cmd, done, _, err = startServer(target, childEnv...)
 		if err != nil {
 			return err
 		}
@@ -241,7 +265,7 @@ func Supervise(ctx context.Context, target, address string) error {
 	for {
 		select {
 		case <-ctx.Done():
-			stopChild(cmd, done)
+			shutdownChild(cmd, done)
 			return nil
 		case childErr := <-done:
 			state, err := readState(statePath)
@@ -261,7 +285,7 @@ func Supervise(ctx context.Context, target, address string) error {
 				state.Phase, state.Message = "verifying", "正在检查新版本启动状态"
 				_ = writeJSONAtomic(statePath, state)
 				var boot string
-				cmd, done, boot, installErr = startServer(target)
+				cmd, done, boot, installErr = startServer(target, childEnv...)
 				if installErr == nil {
 					probe, cancel := context.WithTimeout(ctx, 60*time.Second)
 					installErr = verifyHealth(probe, address, boot, state.After, done, state.RequireFace)
@@ -289,7 +313,7 @@ func Supervise(ctx context.Context, target, address string) error {
 			if err := writeJSONAtomic(statePath, state); err != nil {
 				return err
 			}
-			cmd, done, _, err = startServer(target)
+			cmd, done, _, err = startServer(target, childEnv...)
 			if err != nil {
 				return err
 			}

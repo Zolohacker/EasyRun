@@ -2,7 +2,7 @@ import {useCallback,useEffect,useRef,useState,type FormEvent} from 'react'
 import {ArrowDownToLine,RefreshCw,RotateCcw,Settings2,ShieldAlert,ShieldCheck} from 'lucide-react'
 import Modal from './Modal'
 import {portalRequest,type PortalUser} from './portal'
-import {clientVersionLabel,updatePhaseLabel,updating,type Versions} from './versions'
+import {clientVersionLabel,platformUpdateModeLabel,updatePhaseLabel,updating,type Versions} from './versions'
 
 const time=(value?:string)=>value?new Date(value).toLocaleString('zh-CN',{hour12:false}):'尚未检查'
 
@@ -58,10 +58,11 @@ export default function VersionManagementPanel({user,notify}:{user:PortalUser;no
     <article className="panel version-card">
       <div className="version-heading"><h2>EasyRun 平台更新</h2><span className={`status-pill ${platform.has_update||platform.last_error?'warn':'ok'}`}>{pending?updatePhaseLabel(platform.phase):platform.last_error?'更新源待就绪':platform.has_update?'发现新版本':'当前版本'}</span></div>
       <div className="version-number"><strong>v{platform.current.version.replace(/^v/,'')}</strong><span>{platform.current.os} / {platform.current.arch} · {platform.current.commit.slice(0,10)}</span></div>
-      <dl className="version-facts"><div><dt>最新发行</dt><dd>{platform.latest_version||'暂未获取'}</dd></div><div><dt>最后检查</dt><dd>{time(platform.checked_at)}</dd></div><div><dt>闲时自动安装</dt><dd>{platform.settings.auto_install?'已开启':'未开启'}</dd></div></dl>
+      <dl className="version-facts"><div><dt>最新发行</dt><dd>{platform.latest_version||'暂未获取'}</dd></div><div><dt>最后检查</dt><dd>{time(platform.checked_at)}</dd></div><div><dt>更新方式</dt><dd>{platformUpdateModeLabel(platform.deployment_mode)}</dd></div><div><dt>闲时自动安装</dt><dd>{platform.settings.auto_install?'已开启':'未开启'}</dd></div></dl>
       {(platform.message||pending)&&<p className="version-update-message" role="status">{reconnecting?'平台正在重启，连接恢复后自动确认结果…':platform.message||'正在准备更新…'}</p>}
       {platform.last_error&&<p className="version-error">{platform.last_error}</p>}
       {platform.capability_reason&&<p className="version-muted">{platform.capability_reason}</p>}
+      {platform.deployment_mode==='container_managed'&&<p className="version-muted">程序更新保存在持久卷中；基础镜像与系统依赖仍通过重建镜像更新。</p>}
       {platform.notes&&<details className="version-notes"><summary>发行说明</summary><p>{platform.notes}</p></details>}
       <div className="version-actions"><button className="button subtle" disabled={!!busy||pending} onClick={()=>void check('platform')}><RefreshCw className={busy==='platform'?'spin':''}/>检查更新</button>{superadmin&&<><button className="button primary" disabled={!platform.can_install||!!busy||pending} onClick={()=>open('install')}><ArrowDownToLine/>一键更新</button><button className="button subtle" disabled={!platform.can_rollback||!!busy||pending} onClick={()=>open('rollback')}><RotateCcw/>回滚</button><button className="icon-button" aria-label="平台更新设置" title="平台更新设置" disabled={!!busy||pending} onClick={()=>open('settings')}><Settings2/></button></>}</div>
       <p className="version-muted version-source">更新源 {platform.settings.repository} · 每 20 分钟检查</p>

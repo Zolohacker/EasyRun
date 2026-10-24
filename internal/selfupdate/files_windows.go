@@ -10,7 +10,11 @@ import (
 	"time"
 )
 
-func configureChild(cmd *exec.Cmd) { cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true} }
+func configureChild(cmd *exec.Cmd)             { cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true} }
+func requestChildShutdown(p *os.Process) error { return p.Kill() }
+func lockRuntimeFile(f *os.File) error {
+	return windows.LockFileEx(windows.Handle(f.Fd()), windows.LOCKFILE_EXCLUSIVE_LOCK|windows.LOCKFILE_FAIL_IMMEDIATELY, 0, 1, 0, &windows.Overlapped{})
+}
 func replaceStateFile(from, to string) error {
 	f, err := windows.UTF16PtrFromString(from)
 	if err != nil {

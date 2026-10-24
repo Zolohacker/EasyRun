@@ -5,9 +5,14 @@ package selfupdate
 import (
 	"os"
 	"os/exec"
+	"syscall"
 	"time"
 )
 
 func configureChild(*exec.Cmd)                 {}
+func requestChildShutdown(p *os.Process) error { return p.Signal(syscall.SIGTERM) }
 func replaceStateFile(from, to string) error   { return os.Rename(from, to) }
 func waitWritable(string, time.Duration) error { return nil }
+func lockRuntimeFile(f *os.File) error {
+	return syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
+}

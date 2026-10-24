@@ -18,7 +18,7 @@
 
 三者应分别备份。生成新密钥并不能恢复旧密钥加密的数据，程序不会用新密钥静默覆盖已有加密部署。
 
-Docker 的 `easyrun_data` 卷存放主密钥，`easyrun_db` 卷存放数据库；升级时同时保留。`docker compose down -v` 会删除卷，请勿将其当作普通升级步骤。自定义 `EASYRUN_DATA_DIR` 时应使用持久可写目录，不要放在每次重建会清空的临时目录。
+Docker 的 `easyrun_data` 卷存放主密钥，`easyrun_db` 卷存放数据库，`easyrun_runtime` 卷存放在线更新的程序及回滚文件；升级、重建容器时保留三个卷。`docker compose down -v` 会删除卷，请勿将其当作普通升级步骤。自定义 `EASYRUN_DATA_DIR` 时应使用持久可写目录，不要放在每次重建会清空的临时目录。程序卷必须独立于数据卷，每个运行实例使用独立程序卷。
 
 ## 旧部署升级
 

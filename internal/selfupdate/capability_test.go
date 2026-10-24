@@ -11,17 +11,19 @@ import (
 
 func TestDeploymentCapabilityPrecedence(t *testing.T) {
 	for _, tc := range []struct {
-		name                  string
-		supervised, container bool
-		want                  string
+		name                           string
+		supervised, container, managed bool
+		want                           string
 	}{
-		{"container without supervisor", false, true, "容器部署"},
-		{"container with supervisor", true, true, "容器部署"},
-		{"standalone", false, false, "守护启动模式"},
-		{"supervised binary", true, false, ""},
+		{"container without supervisor", false, true, false, "容器部署"},
+		{"container with supervisor", true, true, false, "容器部署"},
+		{"managed container", true, true, true, ""},
+		{"managed container without supervisor", false, true, true, "守护启动模式"},
+		{"standalone", false, false, false, "守护启动模式"},
+		{"supervised binary", true, false, false, ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			got := deploymentCapability(tc.supervised, tc.container)
+			got := deploymentCapability(tc.supervised, tc.container, tc.managed)
 			if tc.want == "" && got != "" || tc.want != "" && !strings.Contains(got, tc.want) {
 				t.Fatalf("reason=%q want=%q", got, tc.want)
 			}
