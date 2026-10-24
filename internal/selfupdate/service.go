@@ -112,25 +112,8 @@ DO $$ BEGIN IF EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schem
 			return nil, err
 		}
 	}
-	if os.Getenv("EASYRUN_SUPERVISED") != "1" {
-		s.capability = "当前不是内置守护启动模式，可检查版本；请使用 start-local 或 --supervise 启动以在线安装和回滚"
-	}
-	if _, err := os.Stat("/.dockerenv"); err == nil {
-		s.capability = "容器部署请更新镜像并重新部署；此处仍可检查发行版本"
-	}
-	if err := os.MkdirAll(s.dir, 0700); err != nil {
-		s.capability = "程序目录不可写，请通过部署工具更新"
-	}
-	if s.capability == "" {
-		f, err := os.CreateTemp(s.dir, ".write-check-")
-		if err != nil {
-			s.capability = "更新目录不可写"
-		} else {
-			name := f.Name()
-			_ = f.Close()
-			_ = os.Remove(name)
-		}
-	}
+	s.capability = deploymentCapability(os.Getenv("EASYRUN_SUPERVISED") == "1", runningInContainer())
+	_ = s.installCapability()
 	if state, e := readState(s.statePath); e == nil && state.Target == s.exe && state.Phase == "downloading" {
 		state.Phase, state.Message = "failed", "上次准备更新被中断，可重新发起更新"
 		state.UpdatedAt = time.Now().UTC()
@@ -157,8 +140,10 @@ func (s *Service) SaveSettings(ctx context.Context, auto bool) error {
 	if s.db == nil {
 		return errors.New("更新配置存储未初始化")
 	}
-	if auto && s.capability != "" {
-		return errors.New(s.capability)
+	if auto {
+		if reason := s.installCapability(); reason != "" {
+			return errors.New(reason)
+		}
 	}
 	_, err := s.db.Exec(ctx, `UPDATE platform_update_settings SET auto_install=$1 WHERE id=1`, auto)
 	if err == nil {
@@ -173,15 +158,15 @@ func (s *Service) Snapshot(ctx context.Context) Status {
 	v := s.status
 	s.mu.Unlock()
 	v.Settings, _ = s.settings(ctx)
-	v.CapabilityReason = s.capability
-	v.CanInstall = s.capability == "" && v.HasUpdate
+	v.CapabilityReason = s.installCapability()
+	v.CanInstall = v.CapabilityReason == "" && v.HasUpdate
 	state, err := readState(s.statePath)
 	if err == nil && state.Target == s.exe {
 		v.Phase, v.Message = state.Phase, state.Message
 	}
 	if backup, err := readBackup(s.dir); err == nil {
 		_, statErr := os.Stat(filepath.Join(s.dir, "previous"+filepath.Ext(binaryName())))
-		v.CanRollback = s.capability == "" && statErr == nil && (backup.Build.Version != buildinfo.Version || backup.Build.Commit != buildinfo.Commit)
+		v.CanRollback = v.CapabilityReason == "" && statErr == nil && (backup.Build.Version != buildinfo.Version || backup.Build.Commit != buildinfo.Commit)
 	}
 	if v.Phase == "downloading" || v.Phase == "prepared" || v.Phase == "installing" || v.Phase == "verifying" {
 		v.CanInstall, v.CanRollback = false, false
@@ -238,8 +223,8 @@ func (s *Service) Check(ctx context.Context, force bool) error {
 	return nil
 }
 func (s *Service) Start(ctx context.Context, rollback bool) error {
-	if s.capability != "" {
-		return errors.New(s.capability)
+	if reason := s.installCapability(); reason != "" {
+		return errors.New(reason)
 	}
 	if !s.installMu.TryLock() {
 		return errors.New("平台更新正在进行")

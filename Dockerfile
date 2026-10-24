@@ -6,7 +6,7 @@ COPY frontend ./frontend
 RUN mkdir -p internal/httpapi/web/dist && cd frontend && npm run build
 
 FROM golang:1.23-bookworm AS build
-ARG VERSION=0.1.2
+ARG VERSION=0.1.3
 ARG COMMIT=source
 ARG BUILT_AT=unknown
 RUN apt-get update && apt-get install -y --no-install-recommends gcc libc6-dev && rm -rf /var/lib/apt/lists/*

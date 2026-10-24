@@ -427,12 +427,8 @@ func (c *Client) SubmitRun(ctx context.Context, device Device, session Session, 
 	if _, err := c.post(ctx, "school/filterUsableFence", device, map[string]any{"fenceCodeList": []string{fence.FenceCode}}, requestOptions{session: session}); err != nil {
 		return SubmissionResult{}, activity.Run{}, fmt.Errorf("围栏可用性检查: %w", err)
 	}
-	unfinished, err := c.post(ctx, "run/queryUnFinishRun", device, map[string]any{"sportType": "1"}, requestOptions{form: true, session: session})
-	if err != nil {
-		return SubmissionResult{}, activity.Run{}, fmt.Errorf("查询未完成跑步: %w", err)
-	}
-	if code := findStringInJSON(unfinished.Data, "runRecordCode"); code != "" {
-		return SubmissionResult{}, activity.Run{}, fmt.Errorf("账号存在未结束跑步 %s，请先在客户端结束后重试", code)
+	if err := c.finishUnfinishedRunBeforeStart(ctx, device, session); err != nil {
+		return SubmissionResult{}, activity.Run{}, err
 	}
 
 	targetDistance := strconv.Itoa(int(math.Round(selectedDistanceM)))
@@ -469,7 +465,7 @@ func (c *Client) SubmitRun(ctx context.Context, device Device, session Session, 
 	abortStartedRun := func(cause error) error {
 		cleanupContext, cancel := context.WithTimeout(context.WithoutCancel(ctx), 12*time.Second)
 		defer cancel()
-		if cleanupErr := c.abortSunRun(cleanupContext, device, session, runRecordCode, 7001); cleanupErr != nil {
+		if cleanupErr := c.abortSunRun(cleanupContext, device, session, runRecordCode, abnormalMissingRunData); cleanupErr != nil {
 			return fmt.Errorf("%w；清理已起跑会话失败: %v", cause, cleanupErr)
 		}
 		return cause
