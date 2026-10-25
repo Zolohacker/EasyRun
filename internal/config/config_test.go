@@ -4,8 +4,54 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
+	"time"
 )
+
+func TestAutomationRunTimeoutDefaultsAndOverrides(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		value   string
+		unset   bool
+		want    time.Duration
+		wantErr bool
+	}{
+		{name: "unset", unset: true, want: 90 * time.Minute},
+		{name: "empty", want: 90 * time.Minute},
+		{name: "blank", value: "  ", want: 90 * time.Minute},
+		{name: "documented default", value: "90m", want: 90 * time.Minute},
+		{name: "custom longer timeout", value: "2h", want: 2 * time.Hour},
+		{name: "explicit shorter timeout", value: "3m", want: 3 * time.Minute},
+		{name: "minimum", value: "10s", want: 10 * time.Second},
+		{name: "below minimum", value: "9s", wantErr: true},
+		{name: "zero", value: "0s", wantErr: true},
+		{name: "negative", value: "-1m", wantErr: true},
+		{name: "invalid duration", value: "invalid", wantErr: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("AUTOMATION_RUN_TIMEOUT", tc.value)
+			if tc.unset {
+				if err := os.Unsetenv("AUTOMATION_RUN_TIMEOUT"); err != nil {
+					t.Fatal(err)
+				}
+			}
+			cfg, err := Load()
+			if tc.wantErr {
+				if err == nil || !strings.Contains(err.Error(), "AUTOMATION_RUN_TIMEOUT") {
+					t.Fatalf("expected timeout validation error, got %v", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if cfg.AutomationRunTimeout != tc.want {
+				t.Fatalf("timeout=%s want=%s", cfg.AutomationRunTimeout, tc.want)
+			}
+		})
+	}
+}
 
 func TestProtocolDefaultsMatchObservedProRuntime(t *testing.T) {
 	t.Setenv("PROTOCOL_BASE_URL", "")

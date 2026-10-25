@@ -92,7 +92,7 @@ func New(database store.Store, submitter Submitter, options Options) *Scheduler 
 		options.PollInterval = 10 * time.Second
 	}
 	if options.RunTimeout <= 0 {
-		options.RunTimeout = 3 * time.Minute
+		options.RunTimeout = 90 * time.Minute
 	}
 	if options.Logger == nil {
 		options.Logger = slog.Default()

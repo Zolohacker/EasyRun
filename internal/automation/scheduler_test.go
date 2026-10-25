@@ -8,6 +8,26 @@ import (
 	"github.com/Zolohacker/EasyRun/internal/platform"
 )
 
+func TestSchedulerRunTimeoutDefaultsAndOverrides(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		configured time.Duration
+		want       time.Duration
+	}{
+		{name: "unset", want: 90 * time.Minute},
+		{name: "negative uses fallback", configured: -time.Minute, want: 90 * time.Minute},
+		{name: "custom longer timeout", configured: 2 * time.Hour, want: 2 * time.Hour},
+		{name: "explicit shorter timeout", configured: 3 * time.Minute, want: 3 * time.Minute},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := New(nil, nil, Options{RunTimeout: tc.configured})
+			if s.runTimeout != tc.want {
+				t.Fatalf("timeout=%s want=%s", s.runTimeout, tc.want)
+			}
+		})
+	}
+}
+
 func TestNextRunWithTimezone(t *testing.T) {
 	after := time.Date(2026, 10, 21, 0, 0, 0, 0, time.UTC)
 	next, err := NextRun("30 6 * * 1-5", "Asia/Shanghai", after)

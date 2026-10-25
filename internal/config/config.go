@@ -95,7 +95,7 @@ func Load() (Config, error) {
 	if err != nil || automationPoll < time.Second {
 		return Config{}, fmt.Errorf("AUTOMATION_POLL_INTERVAL must be at least 1s")
 	}
-	automationRunTimeout, err := time.ParseDuration(env("AUTOMATION_RUN_TIMEOUT", "3m"))
+	automationRunTimeout, err := time.ParseDuration(env("AUTOMATION_RUN_TIMEOUT", "90m"))
 	if err != nil || automationRunTimeout < 10*time.Second {
 		return Config{}, fmt.Errorf("AUTOMATION_RUN_TIMEOUT must be at least 10s")
 	}
