@@ -5,7 +5,7 @@ import (
 	"runtime"
 )
 
-var Version = "0.1.7"
+var Version = "0.1.8"
 var Commit = "source"
 var BuiltAt = "unknown"
 var BuildType = "source"

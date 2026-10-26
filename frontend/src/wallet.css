@@ -19,26 +19,42 @@
 .payment-method-footer a {display:inline-flex;align-items:center;gap:4px;color:var(--accent);text-decoration:none}
 .payment-method-footer a:hover {text-decoration:underline}
 .payment-method-footer .status-pill {font-size:12px}
-.deposit-payment-modal.app-modal {width:min(760px,100%)}
-.deposit-payment-modal .modal-body {display:grid;gap:20px}
-.deposit-network-line {display:flex;align-items:center;justify-content:space-between;gap:12px;color:var(--muted);font-size:13px}
-.deposit-payment-layout {display:grid;grid-template-columns:250px minmax(0,1fr);gap:26px;align-items:center;min-width:0}
-.deposit-payment-code {padding:12px 6px;border:1px solid var(--line);border-radius:16px;background:#fff}
-.deposit-payment-details {display:grid;gap:14px;min-width:0}
-.deposit-payment-details .portal-address {padding:14px;font-size:15px;line-height:1.8;letter-spacing:.2px}
-.deposit-payment-details .button {min-height:42px}
-.deposit-network-note {display:flex;align-items:flex-start;gap:8px;font-size:13px;line-height:1.8;color:var(--muted);margin:0}
+.deposit-payment-modal.app-modal {width:min(740px,100%)}
+.deposit-payment-modal.app-modal>.modal-head {padding:10px 22px}
+.deposit-payment-modal .modal-body {display:grid;gap:20px;padding:22px}
+.deposit-payment-layout {display:grid;grid-template-columns:234px minmax(0,1fr);grid-template-areas:"code network" "code address" "code note";gap:14px 26px;align-items:start;min-width:0}
+.deposit-payment-code {grid-area:code;align-self:center;min-width:0;padding:10px 10px 14px;border:1px solid var(--line);border-radius:16px;background:#fff;box-shadow:0 3px 12px rgba(35,45,64,.035)}
+.deposit-payment-code .deposit-qr {gap:3px}
+.deposit-payment-code .deposit-qr-code {width:100%;padding:0;border-radius:0}
+.deposit-payment-code .deposit-qr-caption {font-size:14px;line-height:1.6;color:var(--muted)}
+.deposit-network-line {grid-area:network;display:flex;align-items:center;justify-content:space-between;gap:12px;min-width:0}
+.deposit-network-line>div {display:grid;gap:4px;min-width:0}
+.deposit-network-line>div>span {font-size:13px;line-height:1.5;color:var(--muted)}
+.deposit-network-line strong {font-size:17px;font-weight:600;line-height:1.5;color:var(--ink);letter-spacing:.15px}
+.deposit-network-line .status-pill {flex:none;font-size:12px;max-width:50%;white-space:normal;overflow-wrap:anywhere}
+.deposit-payment-modal .deposit-address {grid-area:address;gap:9px}
+.deposit-payment-modal .deposit-address>span {font-size:13px;line-height:1.5}
+.deposit-payment-modal .portal-address {padding:12px 14px;border-radius:10px;font:14px/1.8 ui-monospace,SFMono-Regular,Consolas,monospace;letter-spacing:.15px;overflow-wrap:anywhere;white-space:normal;user-select:all}
+.deposit-payment-modal .deposit-copy-button {width:100%;min-height:44px;font-size:14px;gap:8px}
+.deposit-network-note {grid-area:note;display:flex;align-items:flex-start;gap:7px;font-size:13px;line-height:1.7;color:var(--muted);margin:0}
 .deposit-network-note svg {flex:none;margin-top:3px;color:var(--accent)}
-.deposit-payment-modal .deposit-scan-panel {gap:12px;padding:18px;background:rgba(244,247,252,.7)}
-.deposit-scan-heading {display:flex;align-items:center;gap:12px}
-.deposit-scan-heading>div {display:grid;gap:2px;min-width:0}
-.deposit-scan-heading>div>span {font-size:13px;line-height:1.7;color:var(--muted);font-variant-numeric:tabular-nums}
-.deposit-scan-indicator {display:grid;place-items:center;flex:none;width:38px;height:38px;border-radius:11px;background:var(--success-soft);color:var(--success)}
+.deposit-payment-modal .deposit-scan-panel {gap:9px;padding:16px 0 0;border:0;border-top:1px solid var(--line);border-radius:0;background:transparent}
+.deposit-scan-topline {display:flex;align-items:center;justify-content:space-between;gap:8px 14px;flex-wrap:wrap}
+.deposit-scan-heading {display:flex;align-items:center;gap:9px;min-width:0}
+.deposit-scan-heading>strong {font-size:14px;font-weight:600;line-height:1.6}
+.deposit-scan-timing {flex:none;color:var(--muted);font-size:13px;line-height:1.7;font-variant-numeric:tabular-nums}
+.deposit-scan-indicator {display:grid;place-items:center;flex:none;width:30px;height:30px;border-radius:9px;background:var(--success-soft);color:var(--success)}
 .deposit-scan-indicator.checking {background:var(--accent-soft);color:var(--accent)}
-.deposit-scan-indicator svg {width:18px;height:18px}
-.deposit-scan-panel .deposit-keep-open {display:flex;align-items:flex-start;gap:8px;margin:0;padding:10px 12px;border:1px solid #eadcc0;border-radius:9px;background:#fcf6e9;color:var(--amber);font-size:14px}
-.deposit-keep-open svg {flex:none;margin-top:4px}
-.deposit-scan-panel .deposit-scan-result {margin:0;line-height:1.7}
+.deposit-scan-indicator.warning {background:#fcf2df;color:var(--amber)}
+.deposit-scan-timing.warning {color:var(--amber)}
+.deposit-scan-indicator svg {width:16px;height:16px}
+.deposit-payment-modal .deposit-keep-open {display:flex;align-items:flex-start;gap:7px;margin:0;padding:0;color:var(--muted);font-size:13px;line-height:1.7}
+.deposit-keep-open svg {flex:none;margin-top:3px}
+.deposit-payment-modal .deposit-scan-panel .deposit-scan-result {margin:0;color:var(--muted);font-size:13px;line-height:1.7;overflow-wrap:anywhere}
+.deposit-payment-modal .deposit-scan-panel .deposit-scan-result.failed {color:var(--amber)}
+.deposit-payment-modal .deposit-scan-credit {font-size:14px;line-height:1.7}
+.deposit-payment-modal .portal-error {margin:0;padding:9px 12px;font-size:13px}
+.deposit-payment-modal .portal-warning {margin:0;font-size:14px;line-height:1.7}
 .wallet-ledger-empty {min-height:240px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:30px 20px;text-align:center;border:1px solid var(--line);border-radius:14px;background:linear-gradient(150deg,rgba(242,245,252,.65),rgba(255,255,255,.5))}
 .wallet-ledger-empty-icon {width:58px;height:58px;display:grid;place-items:center;border:1px solid #e0e6f1;border-radius:18px;background:#fff;box-shadow:0 5px 15px rgba(35,45,64,.035);color:#8796b2;margin-bottom:3px}
 .wallet-ledger-empty-icon svg {width:26px;height:26px;stroke-width:1.5}
@@ -50,9 +66,13 @@
   .payment-method-card {padding:20px;gap:20px}
 }
 @media(max-width:560px){
-  .deposit-payment-layout {grid-template-columns:minmax(0,1fr);gap:18px}
-  .deposit-payment-code {width:250px;max-width:100%;justify-self:center}
-  .deposit-payment-modal .modal-body {gap:16px}
-  .deposit-payment-modal .deposit-scan-panel {padding:14px}
+  .deposit-payment-modal.app-modal>.modal-head {padding:10px 16px}
+  .deposit-payment-modal .modal-body {gap:16px;padding:16px 18px calc(18px + env(safe-area-inset-bottom,0px))}
+  .deposit-payment-layout {grid-template-columns:minmax(0,1fr);grid-template-areas:"network" "code" "address" "note";gap:14px}
+  .deposit-network-line>div {display:flex;align-items:center;flex-wrap:wrap;gap:4px 12px}
+  .deposit-network-line strong {font-size:15px}
+  .deposit-payment-code {width:218px;max-width:100%;justify-self:center;padding:8px 8px 10px}
+  .deposit-payment-modal .portal-address {padding:10px 12px;font-size:14px}
+  .deposit-payment-modal .deposit-scan-panel {padding-top:14px}
   .wallet-ledger-empty {min-height:220px;padding:25px 16px}
 }

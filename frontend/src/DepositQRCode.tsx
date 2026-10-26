@@ -10,7 +10,6 @@ export default function DepositQRCode({address}:{address:string}) {
         bgColor="#ffffff" fgColor="#000000" role="img"
         aria-label="USDT TRC20 专属收款二维码" title={`收款地址：${address}`}/>
     </div>
-    <strong>扫码向本账号充值</strong>
-    <span>仅支持 TRON 网络的 USDT（TRC20）</span>
+    <span className="deposit-qr-caption">扫码转入 USDT</span>
   </div>
 }
