@@ -9,18 +9,18 @@ const compiled=ts.transpileModule(readFileSync(source,'utf8'),{compilerOptions:{
 const loaded={exports:{}}
 new Function('require','module','exports',compiled)(createRequire(source),loaded,loaded.exports)
 const {remainingScanSeconds,scanPending,scanCountdown}=loaded.exports
-const status={state:'succeeded',server_time:'2026-10-23T00:00:00Z',next_allowed_at:'2026-10-23T00:03:00Z',retry_after_seconds:180}
+const status={state:'succeeded',server_time:'2026-10-23T00:00:00Z',next_allowed_at:'2026-10-23T00:01:00Z',retry_after_seconds:60}
 
 test('deposit check cooldown counts down using server time and elapsed time',()=>{
-  assert.equal(remainingScanSeconds(status,0),180)
-  assert.equal(remainingScanSeconds(status,119999),61)
-  assert.equal(remainingScanSeconds(status,180000),0)
+  assert.equal(remainingScanSeconds(status,0),60)
+  assert.equal(remainingScanSeconds(status,29999),31)
+  assert.equal(remainingScanSeconds(status,60000),0)
   assert.equal(remainingScanSeconds(status,999999),0)
   assert.equal(scanCountdown(180),'3:00')
   assert.equal(scanCountdown(9),'0:09')
 })
 test('clock differences, missing timestamps and idle state are handled',()=>{
-  assert.equal(remainingScanSeconds({...status,server_time:'invalid',next_allowed_at:undefined},30000),150)
+  assert.equal(remainingScanSeconds({...status,server_time:'invalid',next_allowed_at:undefined},30000),30)
   assert.equal(remainingScanSeconds({...status,server_time:'2026-10-23T00:04:00Z'},0),0)
   assert.equal(remainingScanSeconds({state:'idle',server_time:status.server_time,retry_after_seconds:0},0),0)
 })

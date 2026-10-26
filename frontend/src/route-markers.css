@@ -1,0 +1,14 @@
+/* Do not rotate/translate the outer element: Leaflet positions it precisely. */
+.leaflet-marker-icon.route-node-marker {border:0;background:none;box-shadow:none;outline:0;overflow:visible;cursor:pointer}
+.leaflet-marker-draggable.route-node-marker {cursor:grab}
+.leaflet-marker-draggable.route-node-marker:active {cursor:grabbing}
+.route-node-marker .route-node-badge {box-sizing:border-box;display:flex;align-items:center;justify-content:center;width:100%;height:100%;padding:0;border:1px solid #b6bde5;border-radius:50%;background:#fff;color:#4f60ca;box-shadow:0 1px 2px rgba(35,45,64,.12);transition:box-shadow .16s ease}
+.route-node-marker .route-node-label {display:flex;align-items:center;justify-content:center;width:100%;height:100%;margin:0;padding:0;font:700 9px/1 "Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;font-variant-numeric:tabular-nums;letter-spacing:0;text-indent:0;text-align:center;writing-mode:horizontal-tb;transform:none;user-select:none}
+.route-node-marker.route-node-start .route-node-badge {background:#28765c;color:#fff;border-color:#fff;box-shadow:0 1px 3px rgba(35,66,52,.16)}
+.route-node-marker.route-node-finish .route-node-badge {background:#34425f;color:#fff;border-color:#fff;box-shadow:0 1px 3px rgba(35,45,64,.16)}
+.route-node-marker.route-node-start .route-node-label,.route-node-marker.route-node-finish .route-node-label {font-size:10px;font-weight:600}
+.route-node-marker:focus-visible .route-node-badge {outline:2px solid #4f60ca;outline-offset:2px}
+@media(hover:hover){.route-node-marker:hover .route-node-badge {box-shadow:0 2px 4px rgba(35,45,64,.18)}}
+/* Keep touch dragging practical without enlarging the visible dot. */
+@media(pointer:coarse){.route-node-marker::before {content:"";position:absolute;width:28px;height:28px;left:50%;top:50%;transform:translate(-50%,-50%);border-radius:50%}}
+@media(prefers-reduced-motion:reduce){.route-node-marker .route-node-badge {transition:none}}

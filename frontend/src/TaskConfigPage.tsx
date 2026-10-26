@@ -1,0 +1,51 @@
+import {useCallback,useEffect,useState,type FormEvent} from 'react'
+import {ImagePlus,LockKeyhole,Save,ShieldCheck} from 'lucide-react'
+import BrandMark from './BrandMark'
+import SearchSelect from './SearchSelect'
+import RouteSketchEditor from './RouteSketchEditor'
+import {availableRouteMode,routeMapError,minimumRouteDistance,routeDistance,routeSelectionError} from './manualRoutes'
+import type {Area,Job,ManualRoute,Plan,Point} from './types'
+import {creditLabel} from './taskPrepay'
+import './routes.css'
+
+type Limits={max_distance_m:number;daily_run_limit:number;weekly_run_limit:number;daily_distance_limit_m:number;weekly_distance_limit_m:number;day_scope:string}
+type ConfigData={map_api_configured:boolean;job:Job;plan:Plan;area:Area;routes:ManualRoute[];account_name:string;face_configured:boolean;limits:Limits;scope_kind:string;remaining_units:number}
+function editableJob(value:ConfigData):Job {
+ const low=Math.ceil((value.plan.rules.min_distance_m||value.plan.target_distance_m)/100)*100
+ return {...value.job,route_mode:availableRouteMode(value.map_api_configured,value.job.route_mode||'auto'),target_distance_m:value.plan.rules.plan_type===2?low:Math.min(value.job.target_distance_m||value.limits.max_distance_m,Math.floor(value.limits.max_distance_m/100)*100),schedule_mode:value.job.schedule_mode==='plan_random'?'plan_random':'manual',manual_time:value.job.manual_time||'06:30',day_scope:value.job.day_scope||'every_day'}
+}
+export default function TaskConfigPage(){
+  const id=location.pathname.split('/')[2]||'',token=new URLSearchParams(location.hash.slice(1)).get('token')||''
+  const [data,setData]=useState<ConfigData|null>(null),[form,setForm]=useState<Job|null>(null),[loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState(''),[message,setMessage]=useState('')
+  const [draw,setDraw]=useState(false),[points,setPoints]=useState<Point[]>([]),[file,setFile]=useState<File|null>(null),[preview,setPreview]=useState('')
+  const request=useCallback(async<T,>(suffix='',options:RequestInit={}):Promise<T>=>{
+    const response=await fetch(`/api/v1/public/tasks/${encodeURIComponent(id)}${suffix}`,{...options,headers:{Authorization:`Bearer ${token}`,...options.headers},credentials:'omit'})
+    const body=await response.json();if(!response.ok){if(response.status===404)setData(null);throw new Error(body?.error?.message||'请求未完成')};return body as T
+  },[id,token])
+  const load=useCallback(async()=>{const value=await request<ConfigData>();setData(value);setForm(editableJob(value));setDraw(false);setPoints([])},[request])
+  useEffect(()=>{let current=true;const controller=new AbortController();void request<ConfigData>('',{signal:controller.signal}).then(value=>{if(current){setData(value);setForm(editableJob(value))}}).catch(e=>{if(current)setError(e.message)}).finally(()=>{if(current)setLoading(false)});return()=>{current=false;controller.abort()}},[request])
+  useEffect(()=>{if(!file){setPreview('');return};const url=URL.createObjectURL(file);setPreview(url);return()=>URL.revokeObjectURL(url)},[file])
+  const upload=async()=>{if(!file||busy)return;setBusy(true);setError('');setMessage('');try{if(file.size>6*1024*1024)throw new Error('照片超过 6 MB');await request('/face',{method:'PUT',headers:{'Content-Type':file.type},body:file});setFile(null);setData(v=>v?{...v,face_configured:true}:v);setMessage('照片已更新')}catch(e){setError((e as Error).message)}finally{setBusy(false)}}
+  const save=async(e:FormEvent)=>{e.preventDefault();if(!form||busy)return;setBusy(true);setError('');setMessage('');try{
+    const {target_distance_m,route_mode,manual_route_id,schedule_mode,manual_time,day_scope,daily_run_limit,weekly_run_limit,daily_distance_limit_m,weekly_distance_limit_m}=form
+    await request('',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({target_distance_m,route_mode:route_mode||'auto',manual_route_id:manual_route_id||'',...(draw&&route_mode==='custom'?{route_points:points}:{}),schedule_mode,manual_time,day_scope,daily_run_limit,weekly_run_limit,daily_distance_limit_m,weekly_distance_limit_m})})
+    await load();setMessage('配置已保存，将用于后续任务；当前执行不会被中断')
+  }catch(e){setError((e as Error).message)}finally{setBusy(false)}}
+  const countBased=data?.plan.rules.plan_type===2
+  const minimum=data?Math.ceil((data.plan.rules.min_distance_m||data.plan.target_distance_m)/100)*100:300
+  const maximum=data?Math.min(data.limits.max_distance_m,data.plan.rules.max_distance_m||data.plan.target_distance_m):0
+  const selected=data?.routes.find(r=>r.id===form?.manual_route_id)
+  const routeError=routeMapError(!!data?.map_api_configured,form?.route_mode||'auto')||(form?.route_mode==='custom'&&draw?(routeDistance(points)<=minimumRouteDistance(data?.plan)?'请绘制超过计划最低长度的路线':form.target_distance_m>routeDistance(points)?'任务距离超过已绘制的路线长度':''):form?routeSelectionError(form.route_mode||'auto',selected,form.target_distance_m,data?.plan,data?.area):'')
+  const set=(patch:Partial<Job>)=>setForm(v=>v?{...v,...patch}:v)
+  return <main className="task-config-page"><a className="portal-brand" href="/"><span><BrandMark/></span><b>EasyRun</b></a>
+    <section className="panel"><h1>独立配置</h1><p className="portal-hint">用于帮他人下单的情况：下单者将此链接交给使用者，配置对应任务的人脸、路线和跑步参数。</p><div className="portal-warning"><ShieldCheck/><span>请勿泄露链接，持有者可直接修改配置。链接可由下单者轮换或撤销；这里不支持充值、购买或扩大付费范围。</span></div>{data&&<div className="task-config-limits"><span>{data.account_name||'当前账号'}</span><span>{data.plan.name}</span><span>{data.area.name}</span><span><LockKeyhole size={12}/> 单次上限 {(maximum/1000).toFixed(2)} km</span><span>{data.scope_kind==='plan_package'?'已购完整计划套餐':data.scope_kind==='personal'?'个人任务 · 限定范围':`剩余预付 ${creditLabel(data.scope_kind,data.remaining_units)}`}</span></div>}</section>
+    {loading&&<div className="panel">正在验证配置链接…</div>}
+    {error&&<div className="portal-error" role="alert">{error}</div>}{message&&<div className="portal-notice" role="status">{message}</div>}
+    {data&&form&&<><section className="panel"><h2>人脸照片</h2><p className="portal-hint">{data.face_configured?'已设置自定义照片，可选择新照片替换。':'尚未设置自定义照片。'}仅上传账号本人同意使用的照片。</p>{preview&&<div className="portal-portrait-preview"><img src={preview} alt="待上传的完整人脸照片"/></div>}<div className="public-photo-controls"><label className="button subtle portal-file-button"><ImagePlus/>选择照片<input type="file" disabled={busy} accept="image/jpeg,image/png" onChange={e=>{setFile(e.target.files?.[0]||null);setMessage('')}}/></label><button className="button primary" type="button" disabled={busy||!file} onClick={()=>void upload()}>上传照片</button><small>JPEG / PNG · 最大 6 MB</small></div></section>
+    <form className="panel form-stack" onSubmit={save}><h2>路线与跑步参数</h2><fieldset disabled={busy} className="task-config-fields"><div className="form-grid"><label className="field"><span>路线模式</span><SearchSelect value={form.route_mode||'auto'} onChange={e=>{set({route_mode:e.target.value as 'auto'|'custom',manual_route_id:''});setDraw(false);setPoints([])}}><option value="auto" disabled={!data.map_api_configured}>自动路线{!data.map_api_configured?'（未配置地图 Key）':''}</option><option value="custom">自定义路线</option></SearchSelect></label><label className="field"><span>单次距离（米）{countBased?' · 按次计划使用最低距离':''}</span><input type="number" required step="100" min={minimum} max={maximum} readOnly={countBased} value={countBased?minimum:form.target_distance_m} onChange={e=>set({target_distance_m:Number(e.target.value)})}/><small>允许 {minimum}–{maximum} m，100 m 一档</small></label></div>
+    {!data.map_api_configured&&<div className="portal-notice" role="status">尚未配置地图 API Key，仅支持选择或绘制自定义路线。</div>}
+    {form.route_mode==='custom'&&<div className="route-choice"><label className="field"><span>自定义路线</span><SearchSelect value={draw?'draw':form.manual_route_id||''} onChange={e=>{if(e.target.value==='draw'){setDraw(true);setPoints(selected?.points||[])}else{setDraw(false);set({manual_route_id:e.target.value})}}}><option value="">选择路线</option>{data.routes.map(r=><option key={r.id} value={r.id}>{r.name} · {(r.distance_m/1000).toFixed(3)} km</option>)}<option value="draw">绘制新路线</option></SearchSelect></label>{draw&&<RouteSketchEditor area={data.area} points={points} onChange={setPoints} minimumM={minimumRouteDistance(data.plan)} disabled={busy}/>}<p className="portal-hint">路线可绘制得更长，实际只截取所选任务距离；路线长度不会增加付费额度。</p>{routeError&&<div className="portal-error" role="alert">{routeError}</div>}</div>}
+    <div className="form-grid"><label className="field"><span>执行时间</span><SearchSelect value={form.schedule_mode} onChange={e=>set({schedule_mode:e.target.value})}><option value="manual">固定时间</option>{!!data.plan.rules.time_windows?.length&&(!data.limits.day_scope||data.limits.day_scope==='every_day')&&<option value="plan_random">计划时段内随机</option>}</SearchSelect></label>{form.schedule_mode==='manual'&&<><label className="field"><span>时刻（{form.timezone}）</span><input required type="time" value={form.manual_time||'06:30'} onChange={e=>set({manual_time:e.target.value})}/></label><label className="field"><span>执行日</span><SearchSelect value={form.day_scope||'every_day'} onChange={e=>set({day_scope:e.target.value})}>{[['every_day','每天'],['workday','工作日'],['weekend','周末']].filter(([key])=>!data.limits.day_scope||data.limits.day_scope==='every_day'||data.limits.day_scope===key).map(([key,label])=><option value={key} key={key}>{label}</option>)}</SearchSelect></label></>}</div>
+    <div className="form-grid">{([{key:'daily_run_limit',label:'每日次数上限',step:1},{key:'weekly_run_limit',label:'每周次数上限',step:1},{key:'daily_distance_limit_m',label:'每日距离上限（米）',step:100},{key:'weekly_distance_limit_m',label:'每周距离上限（米）',step:100}] as const).map(({key,label,step})=><label className="field" key={key}><span>{label}</span><input required type="number" step={step} min={data.limits[key]>0?1:0} max={data.limits[key]>0?data.limits[key]:undefined} value={form[key]} onChange={e=>set({[key]:Number(e.target.value)})}/><small>{data.limits[key]>0?`下单上限 ${data.limits[key]}`:'0 表示使用计划规则，不额外设限'}</small></label>)}</div><p className="portal-hint">配速、步频等继续采用计划规则。修改参数不改变账号、计划、区域、计费方式或任务启停状态。</p></fieldset><button type="submit" className="button primary wide" disabled={busy||!!routeError||maximum<minimum||form.target_distance_m>maximum}><Save/>{busy?'正在保存…':'保存配置'}</button></form></>}
+  </main>
+}

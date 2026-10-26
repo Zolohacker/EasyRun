@@ -75,12 +75,13 @@ func Defaults() Settings {
 }
 
 type LedgerEntry struct {
-	ID         string    `json:"id"`
-	UserID     string    `json:"user_id"`
-	DeltaMicro int64     `json:"delta_micro"`
-	Kind       string    `json:"kind"`
-	Reference  string    `json:"reference"`
-	CreatedAt  time.Time `json:"created_at"`
+	ID                 string    `json:"id"`
+	UserID             string    `json:"user_id"`
+	DeltaMicro         int64     `json:"delta_micro"`
+	FundingAmountMicro int64     `json:"funding_amount_micro"`
+	Kind               string    `json:"kind"`
+	Reference          string    `json:"reference"`
+	CreatedAt          time.Time `json:"created_at"`
 }
 type DepositAddress struct {
 	UserID    string    `json:"user_id"`

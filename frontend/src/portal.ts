@@ -8,12 +8,12 @@ export type PortalSettings={
 }
 export type WalletBackup={kind:'bip39'|'legacy_seed';mnemonic?:string;seed_hex?:string;network:string;derivation_path:string;passphrase:string}
 export type WalletNodeProbe={passed:boolean;network:string;provider:string;checked_at:string;checks:{name:string;passed:boolean;message:string;latency_ms:number;block_height?:number}[]}
-export type BillingSummary={user:PortalUser;pricing:PortalSettings['pricing'];ledger:{id:string;delta_micro:number;kind:string;reference:string;created_at:string}[];entitlements:{account_id:string;plan_id:string}[];job_modes:Record<string,string>;deposit_address:string;wallet_enabled:boolean;network:string;contract:string}
+export type BillingSummary={user:PortalUser;pricing:PortalSettings['pricing'];ledger:{id:string;delta_micro:number;funding_amount_micro?:number;kind:string;reference:string;created_at:string}[];entitlements:{account_id:string;plan_id:string}[];job_modes:Record<string,string>;deposit_address:string;wallet_enabled:boolean;network:string;contract:string}
 export type FaceLink={url:string|null;expires_at?:string}
 export type Sweep={id:string;address:string;amount_micro:number;state:string;tx_id:string;message:string;created_at:string}
 
-export async function portalRequest<T>(path:string,body?:unknown,method?:string):Promise<T>{
-  const response=await fetch('/api/v1/portal/'+path,{method:method||(body===undefined?'GET':'POST'),headers:{'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)})
+export async function portalRequest<T>(path:string,body?:unknown,method?:string,signal?:AbortSignal):Promise<T>{
+  const response=await fetch('/api/v1/portal/'+path,{method:method||(body===undefined?'GET':'POST'),headers:{'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body),signal})
   const data=await response.json().catch(()=>null)
   if(!response.ok){if(response.status===401&&!path.startsWith('auth/'))window.dispatchEvent(new Event('platform-session-expired'));throw new Error(data?.error?.message||`请求失败：${response.status}`)}
   return data as T

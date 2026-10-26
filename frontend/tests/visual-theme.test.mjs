@@ -79,18 +79,18 @@ test('metric units have their own visual level, and counts remain unitless',()=>
   assert.match(count,/<strong>3\/4<\/strong>/)
 })
 
-test('task rows retain plan, area, quota and all three actions without a forced desktop width',()=>{
+test('task rows retain plan, area, quota and all four actions without a forced desktop width',()=>{
   const app=readFileSync(new URL('../src/App.tsx',import.meta.url),'utf8')
   const portal=readFileSync(new URL('../src/portal.css',import.meta.url),'utf8')
   const layout=readFileSync(new URL('../src/workspace-layout.css',import.meta.url),'utf8')
   const row=app.slice(app.indexOf('<div className="job-row"'),app.indexOf('{!jobs.length &&'))
-  for(const title of ['编辑任务','立即运行','启停'])assert.ok(row.includes(`title="${title}"`))
+  for(const title of ['生成独立配置链接','编辑任务','立即运行','启停'])assert.ok(row.includes(`title="${title}"`))
   assert.match(row,/className="job-plan"|className="job-bind job-plan"/)
   assert.match(row,/<MapPin aria-hidden="true"/)
   assert.match(row,/title=\{quotaLabel\(job,plan\)\}/)
   assert.match(row,/title=\{job.timezone\}/)
   assert.doesNotMatch(portal,/\.main-stage \.job-row\{[^}]*min-width:1000px/)
-  assert.match(layout,/@container task-list \(max-width: 840px\)/)
+  assert.match(layout,/@container task-list \(max-width: 920px\)/)
   assert.match(layout,/"state title distance actions"/)
 })
 

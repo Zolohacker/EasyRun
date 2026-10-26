@@ -102,7 +102,11 @@ export type FaceDetectionResult = {
 
 export type AccountInput = Partial<Account> & { login_name: string; password?: string }
 
+export type ManualRoute = {
+ id:string; name:string; account_id:string; plan_id:string; area_id:string; points:Point[]; distance_m:number; created_at:string; updated_at:string; created_by_user_id?:string; source_job_id?:string
+}
 export type Job = {
+ route_mode?:'auto'|'custom'; manual_route_id?:string
   id: string; account_id: string; plan_id: string; area_id: string
   target_distance_m: number; daily_run_limit: number; weekly_run_limit: number
   daily_distance_limit_m: number; weekly_distance_limit_m: number

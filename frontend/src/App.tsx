@@ -1,7 +1,9 @@
+import {availableRouteMode,routeMapError} from './manualRoutes'
+import {isOpaqueWireValue,accountDisplayName,accountStudentNumber,accountSelectorLabel} from './accountLabels'
 import SearchSelect from './SearchSelect'
 import Modal from './Modal'
 import BrandMark from './BrandMark'
-import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import {
   Workflow, AreaChart, BarChart3, Bot, CalendarClock, Check, ChevronRight, CircleGauge, CloudCog, Cpu, CreditCard, Database, LayoutDashboard, ListChecks, UserRoundCog, WalletCards, Info,
   Eye, EyeOff, Footprints, Gauge, ImagePlus, KeyRound, Layers3, Link2, ListRestart, LockKeyhole, LogOut, Map as MapIcon, MapPin, MoreHorizontal, Pencil, Play, Ruler,
@@ -12,16 +14,20 @@ import { api } from './api'
 import AmapRouteViewport from './AmapRouteViewport'
 import { WalletPage } from './PortalPages'
 import { BillingAdminPage, PortalSystemSettings, UsersAdminPage } from './AdminPages'
-import AccountFaceLinkPanel from './AccountFaceLinkPanel'
+import TaskConfigLinkPanel from './TaskConfigLinkPanel'
+import TaskPrepayPanel from './TaskPrepayPanel'
+import {newCreditRequestID,prepaidAmount,type PrepayMode} from './taskPrepay'
+import RouteManagement from './RouteManagement'
+import {matchingRoutes,routeSelectionError} from './manualRoutes'
 import VersionManagementPanel from './VersionManagementPanel'
 import {ListViewport,Pagination,usePagination} from './Pagination'
 import { money, portalRequest, type BillingSummary, type PortalUser } from './portal'
 import type {
-  Account, Area, Config, Execution, FaceDetectionResult, FaceProfile, Job, MapMetrics, Plan, Point,
+  Account, Area, Config, Execution, FaceDetectionResult, FaceProfile, Job, ManualRoute, MapMetrics, Plan, Point,
   RemoteRecordData, RemoteRecordInspection, Route, Run, RunListItem, RunTimeWindow, Sample, SystemSettings as SystemSettingsData, TargetSelection,
 } from './types'
 
-type Tab = 'overview' | 'accounts' | 'route_test' | 'automation' | 'logs' | 'settings' | 'billing' | 'users' | 'wallet'
+type Tab = 'overview' | 'accounts' | 'route_test' | 'routes' | 'automation' | 'logs' | 'settings' | 'billing' | 'users' | 'wallet'
 type NavigationItem={key:Tab;label:string;icon:ReactNode;count?:number}
 
 export default function App({user,onLogout}:{user:PortalUser;onLogout:()=>Promise<void>}) {
@@ -41,6 +47,7 @@ export default function App({user,onLogout}:{user:PortalUser;onLogout:()=>Promis
     {key:'overview',label:customer?'我的总览':'运行总览',icon:<LayoutDashboard/>},
     {key:'accounts',label:customer?'我的账号':'账号矩阵',icon:<UsersRound/>,count:accounts.length},
     ...(!customer?[{key:'route_test' as const,label:'路线测试',icon:<RouteIcon/>}]:[]),
+    {key:'routes',label:'路线管理',icon:<MapIcon/>},
     {key:'automation',label:'自动任务',icon:<CalendarClock/>,count:jobs.filter(job=>job.enabled).length},
     {key:'logs',label:'执行日志',icon:<ListChecks/>},
     ...(customer?[{key:'wallet' as const,label:'余额与计费',icon:<WalletCards/>}]:[
@@ -88,8 +95,9 @@ export default function App({user,onLogout}:{user:PortalUser;onLogout:()=>Promis
 
   const page = {
     overview: <DashboardOverview user={user} notify={notify} customer={customer} accounts={accounts} plans={plans} areas={areas} jobs={jobs} executions={executions} runs={runs} metrics={metrics} config={config} onNavigate={setTab}/>,
-    accounts: <Accounts accounts={accounts} user={user} notify={notify} onRefresh={refresh}/>,
+    accounts: <Accounts accounts={accounts} config={config} user={user} notify={notify} onRefresh={refresh}/>,
     route_test: <RouteTest accounts={accounts} plans={plans} areas={areas} runs={runs} metrics={metrics} config={config} notify={notify} onRefresh={refresh}/>,
+    routes: <RouteManagement accounts={accounts} plans={plans} areas={areas} customer={customer} notify={notify}/>,
     automation: <Automation jobs={jobs} accounts={accounts} plans={plans} areas={areas} executions={executions} config={config} customer={customer} notify={notify} onRefresh={refresh}/>,
     logs: <ExecutionLogs accounts={accounts} plans={plans} jobs={jobs} notify={notify}/>,
     settings: <SystemSettingsPage config={config} user={user} notify={notify} onRefresh={refresh}/>,
@@ -376,7 +384,7 @@ function RouteTest({accounts, plans, areas, runs, metrics, config, notify, onRef
   </div>
 }
 
-function Accounts({accounts,user,notify,onRefresh}: {accounts:Account[];user:PortalUser;notify:(message:string)=>void;onRefresh:()=>Promise<void>}) {
+function Accounts({accounts,config,user,notify,onRefresh}: {accounts:Account[];config:Config|null;user:PortalUser;notify:(message:string)=>void;onRefresh:()=>Promise<void>}) {
   const emptyForm = {login_name:'', password:'', note:'', fence_index:0, device_id:'', model_name:'Redmi|23013RK75C', system_version:'14'}
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState(emptyForm)
@@ -388,7 +396,6 @@ function Accounts({accounts,user,notify,onRefresh}: {accounts:Account[];user:Por
   const [reauth, setReauth] = useState<{account:Account; mode:'password'|'sms'; password:string; error:string}|null>(null)
   const [records, setRecords] = useState<{account:Account; data:RemoteRecordData; plans:Plan[]}|null>(null)
   const [faceSettings, setFaceSettings] = useState<{account:Account; profile:FaceProfile; version:string; detection?:FaceDetectionResult; detectionError?:string}|null>(null)
-  const [faceLinkAccount,setFaceLinkAccount]=useState<Account|null>(null)
   const [owners,setOwners]=useState<PortalUser[]>([]),[ownerID,setOwnerID]=useState('')
   const admin=user.role!=='customer'
   useEffect(()=>{
@@ -405,10 +412,11 @@ function Accounts({accounts,user,notify,onRefresh}: {accounts:Account[];user:Por
     let message='登录成功，账号已添加'
     if(createTask){
       try{
-        const [saved,localPlans,localAreas,existingJobs]=await Promise.all([api.account(account.id),api.plans(),api.areas(),api.jobs()])
+        const [saved,localPlans,localAreas,existingJobs,mapConfig]=await Promise.all([api.account(account.id),api.plans(),api.areas(),api.jobs(),api.config()])
         const plan=localPlans.find(p=>p.id===saved.default_plan_id)||localPlans.find(p=>p.source_account_id===saved.id)
         const area=localAreas.find(a=>a.id===saved.default_area_id)||localAreas.find(a=>a.source_account_id===saved.id)
         if(existingJobs.some(job=>job.account_id===saved.id))message+='；已有任务，未重复创建'
+        else if(!mapConfig.map_api_configured)message+='；尚未配置地图 Key，请先在路线管理绘制路线，再创建自定义路线任务'
         else if(!plan||!area)message+='；尚无可用计划或区域，请同步后手动创建任务'
         else{
           await api.createJob({account_id:saved.id,plan_id:plan.id,area_id:area.id,target_distance_m:automationDefaultDistance(plan),daily_run_limit:defaultDailyLimit(plan),weekly_run_limit:defaultWeeklyLimit(plan),daily_distance_limit_m:defaultDailyDistanceLimit(plan),weekly_distance_limit_m:defaultWeeklyDistanceLimit(plan),schedule_mode:plan.rules?.time_windows?.length?'plan_random':'manual',manual_time:plan.rules?.time_windows?.length?'':'06:30',day_scope:plan.rules?.time_windows?.length?'':'every_day',cron_expr:'',timezone:'Asia/Shanghai',enabled:false})
@@ -650,7 +658,7 @@ function Accounts({accounts,user,notify,onRefresh}: {accounts:Account[];user:Por
             <Field label="Android 版本"><input value={form.system_version} onChange={event => setForm({...form, system_version:event.target.value})}/></Field>
           </div>
         </details>
-        <label className="portal-toggle"><input type="checkbox" checked={autoTask} onChange={event=>setAutoTask(event.target.checked)}/><span>自动添加任务（默认暂停，确认后启用）</span></label>
+        <label className="portal-toggle"><input type="checkbox" checked={autoTask&&!!config?.map_api_configured} disabled={!config?.map_api_configured} onChange={event=>setAutoTask(event.target.checked)}/><span>自动添加任务（默认暂停，确认后启用）</span></label>{!config?.map_api_configured&&<p className="portal-hint">尚未配置地图 Key，请添加账号后先绘制路线，再创建任务。</p>}
         <Field label="备注"><input value={form.note} onChange={event => setForm({...form, note:event.target.value})}/></Field>
         <button className="button primary wide" disabled={busy === 'add'} type="submit">{busy === 'add' ? (loginMode==='password'?'登录验证中…':'正在发送验证码…') : (loginMode==='password'?'登录并添加账号':'发送验证码')}</button>
       </form>
@@ -684,8 +692,7 @@ function Accounts({accounts,user,notify,onRefresh}: {accounts:Account[];user:Por
 
     {sms && <Modal title="输入短信验证码" onClose={closeSMS}><form className="form-stack" onSubmit={verifySMS}><div className="protocol-note"><Check size={17}/><div><strong>{sms.kind==='onboarding'?'验证通过后才会保存账号':'完成本次登录验证'}</strong><span>滑块已自动完成，求解置信度 {sms.score.toFixed(3)}，短信已发送至 {maskLogin(sms.account.login_name)}</span></div></div><Field label="短信验证码"><input required autoFocus inputMode="numeric" maxLength={8} value={sms.code} onChange={event => setSMS({...sms, code:event.target.value})} placeholder="请输入收到的验证码"/></Field><button className="button primary wide" disabled={busy === 'verify-sms'} type="submit">{busy === 'verify-sms' ? '验证中…' : '验证并完成登录'}</button></form></Modal>}
 
-    {faceSettings && <Modal title={`${accountDisplayName(faceSettings.account)} · 人脸设置`} onClose={() => setFaceSettings(null)} wide><div className="face-settings"><div className="face-explain"><ScanFace/><div><strong>{faceSettings.profile.custom_configured?'跑步时使用自定义人脸':'跑步时自动使用账号绑定底图'}</strong><span>未设置自定义照片时使用绑定底图。</span></div></div><div className="face-preview-grid"><FacePreview title="账号绑定底图" description="由 getUserFaceImg 自动读取并加密缓存" available={faceSettings.profile.base_configured} src={api.faceImageURL(faceSettings.account.id,'base',faceSettings.version)}/><FacePreview title="当前识别人脸" description={faceSettings.profile.custom_configured?'使用本地自定义图片':'未设置时自动回落到绑定底图'} available={faceSettings.profile.effective_source!=='none'} src={api.faceImageURL(faceSettings.account.id,'effective',faceSettings.version)}/></div><div className="face-facts"><div><span>识别开关</span><b>{faceSettings.profile.face_auth?'本计划要求':faceSettings.profile.face_enabled?'账号已启用':'当前未要求'}</b></div><div><span>比对阈值</span><b>{faceSettings.profile.similarity_value || 50}</b></div><div><span>识别模型</span><b>{faceSettings.profile.face_model_type===2?'LOCAL MNN':'APP ALIYUN'}</b></div><div><span>活体/人体</span><b>{faceSettings.profile.body_enabled?`启用 · ${faceSettings.profile.body_rate}`:'未启用'}</b></div></div>{faceSettings.profile.face_model_type===2 && <div className="face-api-notice"><RadioTower/><div><strong>当前使用端内同源模型包</strong><span>本地模型用于照片比对。</span></div></div>}{faceSettings.detection && <div className={`face-detection-result ${faceSettings.detection.passed?'passed':'failed'}`}><div className="face-detection-icon">{faceSettings.detection.passed?<ShieldCheck/>:<X/>}</div><div><span>主动人脸检测</span><strong>{faceSettings.detection.passed?'识别通过':'识别未通过'}</strong><small>{faceSettings.detection.provider} · {faceSettings.detection.source==='custom'?'自定义人脸':'绑定底图'} · {faceSettings.detection.elapsed_ms} ms</small></div><div><span>相似度</span><strong>{faceSettings.detection.confidence.toFixed(2)}</strong><small>阈值 {faceSettings.detection.threshold}</small></div><div><span>Request ID</span><code>{faceSettings.detection.request_id || '—'}</code><small>{dateTime(faceSettings.detection.checked_at)}</small></div></div>}{faceSettings.detectionError && <div className="face-api-error"><X/><div><strong>人脸检测未执行</strong><span>{faceSettings.detectionError}</span></div></div>}<div className="face-actions"><button className="button cyan" onClick={()=>{setFaceLinkAccount(faceSettings.account);setFaceSettings(null)}}><Link2/>生成人脸修改链接</button><button className="button primary" disabled={!faceSettings.account.session_configured || !faceSettings.profile.base_configured || faceSettings.profile.effective_source==='none' || !!busy} onClick={() => void checkFace()}><ScanFace/>{busy===faceSettings.account.id+':face-check'?'检测中…':'主动检测'}</button><button className="button subtle" disabled={!faceSettings.account.session_configured || !!busy} onClick={() => void refreshFace()}><RefreshCw className={busy===faceSettings.account.id+':face-sync'?'spin':''}/>{busy===faceSettings.account.id+':face-sync'?'读取中…':'重新读取绑定底图'}</button><label className={`button cyan ${busy?'disabled':''}`}><ImagePlus/>选择自定义人脸<input type="file" accept="image/jpeg,image/png" disabled={!!busy} onChange={event => { const file=event.target.files?.[0]; event.currentTarget.value=''; void uploadFace(file) }}/></label>{faceSettings.profile.custom_configured && <button className="button danger" disabled={!!busy} onClick={() => void clearFace()}><Trash2/>清除自定义并使用底图</button>}</div><p className="face-storage-note">照片加密保存在本机。</p></div></Modal>}
-    {faceLinkAccount&&<Modal title={`${accountDisplayName(faceLinkAccount)} · 人脸修改链接`} onClose={()=>setFaceLinkAccount(null)}><AccountFaceLinkPanel key={faceLinkAccount.id} account={faceLinkAccount} notify={notify}/></Modal>}
+    {faceSettings && <Modal title={`${accountDisplayName(faceSettings.account)} · 人脸设置`} onClose={() => setFaceSettings(null)} wide><div className="face-settings"><div className="face-explain"><ScanFace/><div><strong>{faceSettings.profile.custom_configured?'跑步时使用自定义人脸':'跑步时自动使用账号绑定底图'}</strong><span>未设置自定义照片时使用绑定底图。</span></div></div><div className="face-preview-grid"><FacePreview title="账号绑定底图" description="由 getUserFaceImg 自动读取并加密缓存" available={faceSettings.profile.base_configured} src={api.faceImageURL(faceSettings.account.id,'base',faceSettings.version)}/><FacePreview title="当前识别人脸" description={faceSettings.profile.custom_configured?'使用本地自定义图片':'未设置时自动回落到绑定底图'} available={faceSettings.profile.effective_source!=='none'} src={api.faceImageURL(faceSettings.account.id,'effective',faceSettings.version)}/></div><div className="face-facts"><div><span>识别开关</span><b>{faceSettings.profile.face_auth?'本计划要求':faceSettings.profile.face_enabled?'账号已启用':'当前未要求'}</b></div><div><span>比对阈值</span><b>{faceSettings.profile.similarity_value || 50}</b></div><div><span>识别模型</span><b>{faceSettings.profile.face_model_type===2?'LOCAL MNN':'APP ALIYUN'}</b></div><div><span>活体/人体</span><b>{faceSettings.profile.body_enabled?`启用 · ${faceSettings.profile.body_rate}`:'未启用'}</b></div></div>{faceSettings.profile.face_model_type===2 && <div className="face-api-notice"><RadioTower/><div><strong>当前使用端内同源模型包</strong><span>本地模型用于照片比对。</span></div></div>}{faceSettings.detection && <div className={`face-detection-result ${faceSettings.detection.passed?'passed':'failed'}`}><div className="face-detection-icon">{faceSettings.detection.passed?<ShieldCheck/>:<X/>}</div><div><span>主动人脸检测</span><strong>{faceSettings.detection.passed?'识别通过':'识别未通过'}</strong><small>{faceSettings.detection.provider} · {faceSettings.detection.source==='custom'?'自定义人脸':'绑定底图'} · {faceSettings.detection.elapsed_ms} ms</small></div><div><span>相似度</span><strong>{faceSettings.detection.confidence.toFixed(2)}</strong><small>阈值 {faceSettings.detection.threshold}</small></div><div><span>Request ID</span><code>{faceSettings.detection.request_id || '—'}</code><small>{dateTime(faceSettings.detection.checked_at)}</small></div></div>}{faceSettings.detectionError && <div className="face-api-error"><X/><div><strong>人脸检测未执行</strong><span>{faceSettings.detectionError}</span></div></div>}<div className="face-actions"><button className="button primary" disabled={!faceSettings.account.session_configured || !faceSettings.profile.base_configured || faceSettings.profile.effective_source==='none' || !!busy} onClick={() => void checkFace()}><ScanFace/>{busy===faceSettings.account.id+':face-check'?'检测中…':'主动检测'}</button><button className="button subtle" disabled={!faceSettings.account.session_configured || !!busy} onClick={() => void refreshFace()}><RefreshCw className={busy===faceSettings.account.id+':face-sync'?'spin':''}/>{busy===faceSettings.account.id+':face-sync'?'读取中…':'重新读取绑定底图'}</button><label className={`button cyan ${busy?'disabled':''}`}><ImagePlus/>选择自定义人脸<input type="file" accept="image/jpeg,image/png" disabled={!!busy} onChange={event => { const file=event.target.files?.[0]; event.currentTarget.value=''; void uploadFace(file) }}/></label>{faceSettings.profile.custom_configured && <button className="button danger" disabled={!!busy} onClick={() => void clearFace()}><Trash2/>清除自定义并使用底图</button>}</div><p className="face-storage-note">照片加密保存在本机。</p></div></Modal>}
 
     {records && <RecordsModal account={records.account} data={records.data} plans={records.plans} notify={notify} onClose={() => setRecords(null)}/>}
   </div>
@@ -847,7 +854,8 @@ function Catalog({accounts, plans, areas, notify, onRefresh}: {accounts:Account[
 }
 
 type AutomationForm = {
-	 billingMode:string
+  routeMode:'auto'|'custom'; manualRouteID:string
+  billingMode:string; orderQuantity:number
   account:string; plan:string; area:string; distance:number; dailyLimit:number; weeklyLimit:number
   dailyDistanceLimit:number; weeklyDistanceLimit:number
   scheduleMode:'manual'|'plan_random'; manualTime:string
@@ -855,7 +863,8 @@ type AutomationForm = {
 }
 
 const emptyAutomationForm = ():AutomationForm => ({
-	 billingMode:'per_run',
+  routeMode:'auto', manualRouteID:'',
+  billingMode:'per_run', orderQuantity:1,
   account:'', plan:'', area:'', distance:0, dailyLimit:0, weeklyLimit:0,
   dailyDistanceLimit:0, weeklyDistanceLimit:0,
   scheduleMode:'manual', manualTime:'06:30', dayScope:'every_day', timezone:'Asia/Shanghai',
@@ -863,23 +872,38 @@ const emptyAutomationForm = ():AutomationForm => ({
 
 function Automation({jobs, accounts, plans, areas, executions, config, customer, notify, onRefresh}: {jobs:Job[]; accounts:Account[]; plans:Plan[]; areas:Area[]; executions:Execution[]; config:Config|null; customer:boolean; notify:(message:string)=>void; onRefresh:()=>Promise<void>}) {
   const jobPages=usePagination(jobs)
+  const [manualRoutes,setManualRoutes]=useState<ManualRoute[]>([])
+  const [mapAvailable,setMapAvailable]=useState(config?.map_api_configured===true)
+  const [linkJob,setLinkJob]=useState<Job|null>(null)
+  useEffect(()=>{void api.manualRoutes().then(setManualRoutes).catch(e=>notify(e.message))},[notify])
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<Job|null>(null)
   const [busy, setBusy] = useState('')
   const [form, setForm] = useState<AutomationForm>(emptyAutomationForm)
   const [billing,setBilling]=useState<BillingSummary|null>(null)
+  const pendingOrder=useRef<{signature:string;id:string}|null>(null)
+  useEffect(()=>{try{pendingOrder.current=JSON.parse(sessionStorage.getItem('easyrun-task-checkout')||'null')}catch{/* optional retry recovery */}},[])
   useEffect(()=>{if(customer)void portalRequest<BillingSummary>('billing').then(setBilling).catch(e=>notify(e.message))},[customer,notify,jobs])
   const formPlans = plans.filter(item => item.source_account_id === form.account)
   const formAreas = areas.filter(item => item.source_account_id === form.account)
   const formPlan = formPlans.find(item => item.id === form.plan)
   const planHasWindows = Boolean(formPlan?.rules?.time_windows?.length)
   const countBasedPlan = isCountBasedPlan(formPlan)
+  const choices=matchingRoutes(manualRoutes,form.account,form.plan,form.area)
+  const selectedRoute=choices.find(r=>r.id===form.manualRouteID)
+  const routeError=routeMapError(mapAvailable,form.routeMode)||routeSelectionError(form.routeMode,selectedRoute,formPlan?automationDefaultDistance(formPlan,form.distance):form.distance,formPlan)
+  const ownedPackage=Boolean(billing?.entitlements.some(p=>p.account_id===form.account&&p.plan_id===form.plan))
+  const checkout=customer&&!editing&&Boolean(billing?.pricing.enabled)
+  const orderUnits=form.billingMode==='per_km'?Math.round(form.orderQuantity*1000):form.orderQuantity
+  const orderAmount=ownedPackage?0:billing?prepaidAmount(form.billingMode as PrepayMode,orderUnits,billing.pricing):null
+  const orderError=checkout&&!ownedPackage?(orderAmount===null?'请输入有效的下单总量':form.billingMode==='per_km'&&orderUnits<(formPlan?automationDefaultDistance(formPlan,form.distance):form.distance)?'下单里程至少覆盖一次任务距离':orderAmount>(billing?.user.balance_micro||0)?'可用余额不足，请先充值':''):''
 
   const submit = async (event:FormEvent) => {
-    event.preventDefault(); setBusy('save')
+    event.preventDefault(); if(busy)return;if(routeError||orderError){notify(routeError||orderError);return};if(customer&&!editing&&!billing){notify('请等待计费信息加载');return};setBusy('save')
     try {
       const payload = {
         account_id:form.account, plan_id:form.plan, area_id:form.area,
+        route_mode:form.routeMode, manual_route_id:form.routeMode==='custom'?form.manualRouteID:'',
         target_distance_m:formPlan ? automationDefaultDistance(formPlan, form.distance) : form.distance, schedule_mode:form.scheduleMode,
         daily_run_limit:form.dailyLimit, weekly_run_limit:form.weeklyLimit,
         daily_distance_limit_m:form.dailyDistanceLimit, weekly_distance_limit_m:form.weeklyDistanceLimit,
@@ -888,24 +912,38 @@ function Automation({jobs, accounts, plans, areas, executions, config, customer,
         cron_expr:'', timezone:form.timezone,
       }
       if (editing) {
-        if(customer)await portalRequest(`jobs/${editing.id}/billing`,{mode:form.billingMode},'PUT')
         await api.updateJob({...editing,...payload})
+      } else if(checkout) {
+        const order={job:{...payload,enabled:true},mode:ownedPackage?'plan_package':form.billingMode,units:ownedPackage?0:orderUnits,expected_amount_micro:orderAmount}
+        const signature=JSON.stringify(order)
+        if(pendingOrder.current?.signature!==signature)pendingOrder.current={signature,id:newCreditRequestID()}
+        try{sessionStorage.setItem('easyrun-task-checkout',JSON.stringify(pendingOrder.current))}catch{/* memory retries remain idempotent */}
+        await portalRequest<Job>('task-orders',{...order,request_id:pendingOrder.current.id})
+        pendingOrder.current=null;try{sessionStorage.removeItem('easyrun-task-checkout')}catch{/* optional */}
       } else {
-        const created=await api.createJob({...payload,enabled:!customer})
-        if(customer){await portalRequest(`jobs/${created.id}/billing`,{mode:form.billingMode},'PUT');await api.updateJob({...created,enabled:true})}
+        await api.createJob({...payload,enabled:true})
       }
       setOpen(false); setEditing(null); setForm(emptyAutomationForm())
-      notify(editing ? '自动任务已更新，新的距离与排期已生效' : '自动任务已创建，下一次执行时间已锁定')
+      notify(editing ? '任务配置已保存' : checkout&&!ownedPackage?`下单成功，已预扣 ${money(orderAmount||0)} USDT`:'任务已创建')
       await onRefresh()
     } catch (error) { notify((error as Error).message) }
     finally { setBusy('') }
   }
-  const openCreate = () => { setEditing(null); setForm(emptyAutomationForm()); setOpen(true) }
+  const prepareEditor=async(draft:AutomationForm,job:Job|null)=>{
+    if(busy)return
+    setBusy('options')
+    try{
+      const [latest,routes]=await Promise.all([api.config(),api.manualRoutes()])
+      setMapAvailable(latest.map_api_configured);setManualRoutes(routes);setEditing(job)
+      setForm({...draft,routeMode:availableRouteMode(latest.map_api_configured,draft.routeMode)});setOpen(true)
+    }catch(e){notify((e as Error).message)}finally{setBusy('')}
+  }
+  const openCreate = () => {void prepareEditor(emptyAutomationForm(),null)}
   const openEdit = (job:Job) => {
     const plan=plans.find(item=>item.id===job.plan_id)
-    setEditing(job)
-    setForm({
-      billingMode:billing?.job_modes[job.id]||'per_run',
+    void prepareEditor({
+      routeMode:job.route_mode||'auto',manualRouteID:job.manual_route_id||'',
+      billingMode:billing?.job_modes[job.id]||'per_run',orderQuantity:1,
       account:job.account_id, plan:job.plan_id, area:job.area_id,
       distance:plan?automationDefaultDistance(plan,job.target_distance_m):job.target_distance_m, scheduleMode:job.schedule_mode==='plan_random'?'plan_random':'manual',
       dailyLimit:job.daily_run_limit||defaultDailyLimit(plan), weeklyLimit:job.weekly_run_limit||defaultWeeklyLimit(plan),
@@ -913,10 +951,9 @@ function Automation({jobs, accounts, plans, areas, executions, config, customer,
       manualTime:job.manual_time||'06:30',
       dayScope:job.day_scope==='workday'||job.day_scope==='weekend'?job.day_scope:'every_day',
       timezone:job.timezone||'Asia/Shanghai',
-    })
-    setOpen(true)
+    },job)
   }
-  const closeEditor = () => { setOpen(false); setEditing(null); setForm(emptyAutomationForm()) }
+  const closeEditor = () => { if(busy==='save')return;setOpen(false); setEditing(null); setForm(emptyAutomationForm()) }
   const runNow = async (job:Job) => {
     setBusy(job.id + ':run')
     try { await api.runJob(job.id); notify('任务已入队，将按 8.7.9 协议执行'); await onRefresh() }
@@ -930,19 +967,22 @@ function Automation({jobs, accounts, plans, areas, executions, config, customer,
     finally { setBusy('') }
   }
   return <div className="page-stack">
-    <section className="page-toolbar"><button className="button primary" onClick={openCreate}><Plus size={17}/>新建任务</button></section>
+    <section className="page-toolbar"><button className="button primary" disabled={!!busy} onClick={openCreate}><Plus size={17}/>新建任务</button></section>
     <section className="automation-summary"><SummaryTile tone="green" icon={<CalendarClock/>} label="启用任务" value={jobs.filter(job => job.enabled).length}/><SummaryTile tone="cyan" icon={<Bot/>} label="工作线程" value={config?.automation.workers || 0}/><SummaryTile tone="violet" icon={<ListRestart/>} label="队列深度" value={config?.automation.queue_depth || 0}/><SummaryTile tone="success" icon={<Check/>} label="成功执行" value={config?.automation.succeeded || 0}/></section>
-    <section className="panel jobs-panel"><div className="panel-heading"><div><h2>账号任务列表</h2></div><span className="count-badge">{jobs.length}</span></div><ListViewport pagination={jobPages} className="job-list">{jobPages.items.map(job => { const owner=accounts.find(item => item.id === job.account_id); const plan=plans.find(item => item.id === job.plan_id); return <div className="job-row" key={job.id}><div className={`job-state ${job.enabled ? 'active' : ''}`}><CalendarClock/></div><div className="job-title"><strong title={owner ? accountDisplayName(owner) : job.account_id}>{owner ? accountDisplayName(owner) : job.account_id}</strong><span>{owner ? accountStudentNumber(owner) : '账号已移除'}</span></div><div className="job-bind job-plan"><span>计划</span><b title={plan?.name}>{plan?.name || '—'}</b><small title={areas.find(item => item.id === job.area_id)?.name}><MapPin aria-hidden="true"/>{areas.find(item => item.id === job.area_id)?.name || '区域待同步'}</small></div><div className="job-distance"><span>{isCountBasedPlan(plan)?'COUNT PLAN':'DISTANCE'}</span><b>{automationDistanceLabel(job,plan)}</b><small title={quotaLabel(job,plan)}>{quotaLabel(job,plan)}</small></div><div className="job-schedule"><code>{scheduleLabel(job)}</code><span title={job.timezone}>{job.next_run_at ? dateTimeInZone(job.next_run_at,job.timezone) : '已暂停'}</span></div><div className="job-actions"><button className="mini-button" title="编辑任务" disabled={!!busy} onClick={() => openEdit(job)}><Pencil/><span className="mobile-action-label">编辑</span></button><button className="mini-button" title="立即运行" disabled={!!busy} onClick={() => void runNow(job)}><Play/><span className="mobile-action-label">立即运行</span></button><button className={`mini-button ${job.enabled ? 'on' : ''}`} title="启停" disabled={!!busy} onClick={() => void toggle(job)}>{job.enabled ? <ToggleRight/> : <ToggleLeft/>}<span className="mobile-action-label">{job.enabled?'暂停':'启用'}</span></button></div></div>})}{!jobs.length && <Empty text="暂无自动任务"/>}</ListViewport></section>
+    <section className="panel jobs-panel"><div className="panel-heading"><div><h2>账号任务列表</h2></div><span className="count-badge">{jobs.length}</span></div><ListViewport pagination={jobPages} className="job-list">{jobPages.items.map(job => { const owner=accounts.find(item => item.id === job.account_id); const plan=plans.find(item => item.id === job.plan_id); return <div className="job-row" key={job.id}><div className={`job-state ${job.enabled ? 'active' : ''}`}><CalendarClock/></div><div className="job-title"><strong title={owner ? accountDisplayName(owner) : job.account_id}>{owner ? accountDisplayName(owner) : job.account_id}</strong><span>{owner ? accountStudentNumber(owner) : '账号已移除'}</span></div><div className="job-bind job-plan"><span>计划</span><b title={plan?.name}>{plan?.name || '—'}</b><small title={areas.find(item => item.id === job.area_id)?.name}><MapPin aria-hidden="true"/>{areas.find(item => item.id === job.area_id)?.name || '区域待同步'} · {job.route_mode==='custom'?'自定义路线':'自动路线'}</small></div><div className="job-distance"><span>{isCountBasedPlan(plan)?'COUNT PLAN':'DISTANCE'}</span><b>{automationDistanceLabel(job,plan)}</b><small title={quotaLabel(job,plan)}>{quotaLabel(job,plan)}</small></div><div className="job-schedule"><code>{scheduleLabel(job)}</code><span title={job.timezone}>{job.next_run_at ? dateTimeInZone(job.next_run_at,job.timezone) : '已暂停'}</span></div><div className="job-actions"><button className="mini-button" title="生成独立配置链接" disabled={!!busy} onClick={()=>setLinkJob(job)}><Link2/><span className="mobile-action-label">配置</span></button><button className="mini-button" title="编辑任务" disabled={!!busy} onClick={() => openEdit(job)}><Pencil/><span className="mobile-action-label">编辑</span></button><button className="mini-button" title="立即运行" disabled={!!busy} onClick={() => void runNow(job)}><Play/><span className="mobile-action-label">运行</span></button><button className={`mini-button ${job.enabled ? 'on' : ''}`} title="启停" disabled={!!busy} onClick={() => void toggle(job)}>{job.enabled ? <ToggleRight/> : <ToggleLeft/>}<span className="mobile-action-label">{job.enabled?'暂停':'启用'}</span></button></div></div>})}{!jobs.length && <Empty text="暂无自动任务"/>}</ListViewport></section>
+    {linkJob&&<Modal title="独立配置链接" onClose={()=>setLinkJob(null)}><TaskConfigLinkPanel key={linkJob.id} job={linkJob} notify={notify}/></Modal>}
     {open && <Modal title={editing?'编辑自动任务':'新建自动任务'} wide onClose={closeEditor}><form className="form-stack" onSubmit={submit}>
       <div className="form-grid">
-        <Field label="账号"><SearchSelect required value={form.account} onChange={event => { const account=accounts.find(item=>item.id===event.target.value); const nextPlan=plans.find(item=>item.id===account?.default_plan_id); setForm({...form,account:event.target.value,plan:account?.default_plan_id||'',area:account?.default_area_id||'',distance:nextPlan?automationDefaultDistance(nextPlan):0,dailyLimit:defaultDailyLimit(nextPlan),weeklyLimit:defaultWeeklyLimit(nextPlan),dailyDistanceLimit:defaultDailyDistanceLimit(nextPlan),weeklyDistanceLimit:defaultWeeklyDistanceLimit(nextPlan),scheduleMode:nextPlan?.rules?.time_windows?.length?form.scheduleMode:'manual'}) }}><option value="">选择账号</option>{accounts.map(account => <option key={account.id} value={account.id}>{accountSelectorLabel(account)}</option>)}</SearchSelect></Field>
-        <Field label="账号跑步计划"><SearchSelect required value={form.plan} onChange={event => { const nextPlan=formPlans.find(item=>item.id===event.target.value); setForm({...form,plan:event.target.value,distance:nextPlan?automationDefaultDistance(nextPlan):0,dailyLimit:defaultDailyLimit(nextPlan),weeklyLimit:defaultWeeklyLimit(nextPlan),dailyDistanceLimit:defaultDailyDistanceLimit(nextPlan),weeklyDistanceLimit:defaultWeeklyDistanceLimit(nextPlan),scheduleMode:nextPlan?.rules?.time_windows?.length?form.scheduleMode:'manual'}) }}><option value="">选择账号内计划</option>{formPlans.map(plan => <option key={plan.id} value={plan.id}>{plan.name} · {planAccountingLabel(plan)}</option>)}</SearchSelect></Field>
-        <Field label="账号校园区域"><SearchSelect required value={form.area} onChange={event => setForm({...form,area:event.target.value})}><option value="">选择账号内区域</option>{formAreas.map(area => <option key={area.id} value={area.id}>{area.name}</option>)}</SearchSelect></Field>
+        <Field label="账号"><SearchSelect required disabled={!!editing||busy==='save'} value={form.account} onChange={event => { const account=accounts.find(item=>item.id===event.target.value); const nextPlan=plans.find(item=>item.id===account?.default_plan_id); setForm({...form,routeMode:availableRouteMode(mapAvailable),manualRouteID:'',account:event.target.value,plan:account?.default_plan_id||'',area:account?.default_area_id||'',distance:nextPlan?automationDefaultDistance(nextPlan):0,dailyLimit:defaultDailyLimit(nextPlan),weeklyLimit:defaultWeeklyLimit(nextPlan),dailyDistanceLimit:defaultDailyDistanceLimit(nextPlan),weeklyDistanceLimit:defaultWeeklyDistanceLimit(nextPlan),scheduleMode:nextPlan?.rules?.time_windows?.length?form.scheduleMode:'manual'}) }}><option value="">选择账号</option>{accounts.map(account => <option key={account.id} value={account.id}>{accountSelectorLabel(account)}</option>)}</SearchSelect></Field>
+        <Field label="账号跑步计划"><SearchSelect required disabled={!!editing||busy==='save'} value={form.plan} onChange={event => { const nextPlan=formPlans.find(item=>item.id===event.target.value); setForm({...form,routeMode:availableRouteMode(mapAvailable),manualRouteID:'',plan:event.target.value,distance:nextPlan?automationDefaultDistance(nextPlan):0,dailyLimit:defaultDailyLimit(nextPlan),weeklyLimit:defaultWeeklyLimit(nextPlan),dailyDistanceLimit:defaultDailyDistanceLimit(nextPlan),weeklyDistanceLimit:defaultWeeklyDistanceLimit(nextPlan),scheduleMode:nextPlan?.rules?.time_windows?.length?form.scheduleMode:'manual'}) }}><option value="">选择账号内计划</option>{formPlans.map(plan => <option key={plan.id} value={plan.id}>{plan.name} · {planAccountingLabel(plan)}</option>)}</SearchSelect></Field>
+        <Field label="账号校园区域"><SearchSelect required value={form.area} onChange={event => setForm({...form,routeMode:availableRouteMode(mapAvailable),manualRouteID:'',area:event.target.value})}><option value="">选择账号内区域</option>{formAreas.map(area => <option key={area.id} value={area.id}>{area.name}</option>)}</SearchSelect></Field>
         <Field label="时区"><input required value={form.timezone} onChange={event => setForm({...form,timezone:event.target.value})}/></Field>
       </div>
       {formPlan && (countBasedPlan ? <CountPlanDistance plan={formPlan}/> : <DistancePicker title="任务跑步距离" plan={formPlan} value={form.distance} onChange={distance=>setForm({...form,distance})}/>)}
+      <div className="route-choice">{!mapAvailable&&<div className="portal-notice" role="status">尚未配置地图 API Key，当前仅支持自定义路线。请先在「路线管理」中绘制并保存路线。</div>}<div className="form-grid"><Field label="路线模式"><SearchSelect value={form.routeMode} onChange={e=>setForm({...form,routeMode:e.target.value as 'auto'|'custom',manualRouteID:''})}><option value="auto" disabled={!mapAvailable}>自动路线{!mapAvailable?'（未配置地图 Key）':''}</option><option value="custom">自定义路线</option></SearchSelect></Field>{form.routeMode==='custom'&&<Field label="已保存路线"><SearchSelect required value={form.manualRouteID} onChange={e=>setForm({...form,manualRouteID:e.target.value})}><option value="">选择手绘路线</option>{choices.map(r=><option value={r.id} key={r.id}>{r.name} · {(r.distance_m/1000).toFixed(3)} km</option>)}</SearchSelect></Field>}</div>{form.routeMode==='custom'&&<p className="portal-hint">在「路线管理」中绘制与保存；执行时从起点截取任务距离。当前有 {choices.length} 条匹配路线。</p>}{routeError&&<div className="portal-error" role="alert">{routeError}</div>}</div>
       {formPlan && <AutomationQuotaEditor plan={formPlan} dailyLimit={form.dailyLimit} weeklyLimit={form.weeklyLimit} dailyDistanceLimit={form.dailyDistanceLimit} weeklyDistanceLimit={form.weeklyDistanceLimit} onChange={(dailyLimit,weeklyLimit,dailyDistanceLimit,weeklyDistanceLimit)=>setForm({...form,dailyLimit,weeklyLimit,dailyDistanceLimit,weeklyDistanceLimit})}/>}
-      {customer&&billing&&<div className="schedule-editor"><Field label={billing.pricing.enabled?'本任务计费方式':'本任务计费方式（当前计费未开启）'}><SearchSelect value={form.billingMode} onChange={e=>setForm({...form,billingMode:e.target.value})}><option value="per_run">按次 · {money(billing.pricing.per_run_micro)} USDT / 次</option><option value="per_km">按公里 · {money(billing.pricing.per_km_micro)} USDT / km</option><option value="plan_package">完整计划套餐（需在余额与计费中先购买）</option></SearchSelect></Field><p className="portal-hint">余额 {money(billing.user.balance_micro)} USDT；成功提交结算，失败 / 跳过退还预扣。</p></div>}
+      {customer&&editing&&<TaskPrepayPanel key={editing.id} jobID={editing.id} notify={notify}/>}
+      {checkout&&billing&&<section className="task-order-checkout">{ownedPackage?<p className="portal-notice"><Check size={16}/>已购买此账号的完整计划套餐，本次下单不再预扣。</p>:<><div className="form-grid"><Field label="下单计费方式"><SearchSelect disabled={busy==='save'} value={form.billingMode} onChange={e=>setForm({...form,billingMode:e.target.value,orderQuantity:e.target.value==='per_km'?Math.ceil((formPlan?automationDefaultDistance(formPlan,form.distance):1000)/100)/10:1})}><option value="per_run">按次 · {money(billing.pricing.per_run_micro)} USDT / 次</option><option value="per_km">按公里 · {money(billing.pricing.per_km_micro)} USDT / km</option></SearchSelect></Field><Field label={form.billingMode==='per_run'?'下单总次数':'下单总公里数'}><input required type="number" disabled={busy==='save'} min={form.billingMode==='per_run'?1:.1} max={form.billingMode==='per_run'?10000:1000} step={form.billingMode==='per_run'?1:.1} value={form.orderQuantity} onChange={e=>setForm({...form,orderQuantity:Number(e.target.value)})}/></Field></div><div className="escrow-checkout-total"><span>本次预扣 <strong>{orderAmount===null?'—':money(orderAmount)} <small>USDT</small></strong></span><span>可用余额 {money(billing.user.balance_micro)} USDT</span></div><p className="escrow-rule"><LockKeyhole/>下单预扣，成功结算。未执行额度可增减，减少退回原预扣金额。</p>{orderError&&<div className="portal-error" role="alert">{orderError}</div>}</>}</section>}
       <div className="schedule-editor">
         <div className="schedule-editor-head"><span>执行时间策略</span><small>随机时间在保存任务时确定</small></div>
         <div className="schedule-mode-grid">
@@ -954,7 +994,7 @@ function Automation({jobs, accounts, plans, areas, executions, config, customer,
           <Field label="执行日"><SearchSelect value={form.dayScope} onChange={event=>setForm({...form,dayScope:event.target.value as AutomationForm['dayScope']})}><option value="every_day">每天</option><option value="workday">工作日</option><option value="weekend">周末</option></SearchSelect></Field>
         </div> : formPlan && <div className="plan-window-panel"><div><strong>服务器计划有效期</strong><span>{planDateRange(formPlan)}</span></div><div className="plan-window-chips">{formPlan.rules.time_windows?.map((window,index)=><span key={`${window.day_type}-${window.start_minute}-${index}`}>{timeWindowLabel(window)}</span>)}</div><small>在计划时段内随机安排，预留跑步与上传时间；执行前复查限额。</small></div>}
       </div>
-      <button className="button primary wide" disabled={busy === 'save' || (form.scheduleMode === 'plan_random' && !planHasWindows)} type="submit">{editing?'保存任务':'创建并启用'}</button>
+      <button className="button primary wide" disabled={busy === 'save' || !!routeError || !!orderError || (customer&&!editing&&!billing) || (form.scheduleMode === 'plan_random' && !planHasWindows)} type="submit">{busy==='save'?'正在保存…':editing?'保存任务配置':checkout&&!ownedPackage?`确认下单 · 预扣 ${orderAmount===null?'—':money(orderAmount)} USDT`:'创建并启用'}</button>
     </form></Modal>}
   </div>
 }
@@ -1106,12 +1146,8 @@ function dateClock(value:string, timezone:string) { try { return new Intl.DateTi
 function executionStatusLabel(status:string) { return ({queued:'排队',running:'执行中',succeeded:'成功',failed:'失败',skipped:'跳过'} as Record<string,string>)[status]||status }
 function authLabel(status:string) { return ({authenticated:'已登录',configured:'待登录',sms_pending:'待验证码',expired:'登录失效',error:'登录异常',unconfigured:'未配置'} as Record<string,string>)[status] || status }
 function maskLogin(value:string) { if (value.length < 7) return value; return `${value.slice(0,3)}****${value.slice(-4)}` }
-function isOpaqueWireValue(value?:string) { const text=(value || '').trim(); return text.length>=20 && text.length%4===0 && /^[A-Za-z0-9+/]+={0,2}$/.test(text) && /[+/=]/.test(text) }
-function accountDisplayName(account:Account) { const name=(account.name || '').trim(); return name && name!==account.login_name && !/^\d{7,}$/.test(name) && !isOpaqueWireValue(name) ? name : '姓名待同步' }
-function accountStudentNumber(account:Account) { const value=(account.student_number || '').trim(); return value && !isOpaqueWireValue(value) ? value : '学号待同步' }
 function accountSchoolName(account:Account) { const value=(account.school_name || '').trim(); return value && !isOpaqueWireValue(value) ? value : '学校待同步' }
 function accountInitials(account:Account) { const value=accountDisplayName(account); return value==='姓名待同步' ? '账' : value.slice(0,2).toUpperCase() }
-function accountSelectorLabel(account:Account) { return `${accountDisplayName(account)} · ${account.login_name || accountStudentNumber(account)}` }
 function faceProfileFromAccount(account:Account):FaceProfile { return {account_id:account.id,face_enabled:account.face_enabled||0,face_auth:!!account.face_auth,similarity_value:account.face_similarity_value||50,face_time:account.face_time||0,body_enabled:!!account.face_body_enabled,body_rate:account.face_body_rate||0,face_model_type:account.face_model_type||1,base_configured:!!account.face_base_configured,custom_configured:!!account.face_custom_configured,effective_source:account.face_effective_source||'none',synced_at:account.face_synced_at} }
 function dayScopeLabel(value?:string) { return ({every_day:'每天',workday:'工作日',weekend:'周末'} as Record<string,string>)[value || ''] || '自定义' }
 function scheduleLabel(job:Job) {

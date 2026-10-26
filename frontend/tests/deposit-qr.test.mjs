@@ -41,5 +41,8 @@ test('different customers receive different QR matrices',()=>{
 test('customer recharge view no longer renders a contract address',()=>{
   const source=readFileSync(new URL('../src/PortalPages.tsx',import.meta.url),'utf8')
   assert.doesNotMatch(source,/data\.contract|合约：/)
-  assert.match(source,/<DepositQRCode address=\{data\.deposit_address\}/)
+  assert.match(source,/<DepositPaymentModal address=\{data\.deposit_address\}/)
+  const dialog=readFileSync(new URL('../src/DepositPaymentModal.tsx',import.meta.url),'utf8')
+  assert.match(dialog,/<DepositQRCode address=\{address\}/)
+  assert.doesNotMatch(dialog,/data\.contract|合约：/)
 })

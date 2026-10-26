@@ -372,15 +372,24 @@ func (s *Service) Submit(ctx context.Context, account platform.Account, plan pla
 		request.TargetDistanceM, request.Seed, faceInput,
 		func(buildContext context.Context, started protocol.RunStartContext) (activity.Run, error) {
 			waypoints := selectTargetWaypoints(started.Start, started.ClockMode, started.TargetPoints)
-			planned, planErr := s.planner.PlanRoute(buildContext, route.PlanRequest{
-				Start: started.Start, Via: waypoints,
-				TargetDistanceM: request.TargetDistanceM,
-				MaxDistanceM:    plan.Rules.MaxDistanceM,
-				CandidateCount:  area.CandidateCount,
-				Boundary:        area.Boundary,
-				Seed:            request.Seed,
-				FairnessKey:     "account:" + stored.ID,
-			})
+			var planned route.Route
+			var planErr error
+			if request.ManualRoute != nil {
+				planned = *request.ManualRoute
+				if !route.CoversInOrder(planned.Points, waypoints, 10) {
+					return activity.Run{}, errors.New("手绘路线截取后未覆盖本次必经打卡点，请修改路线或选择自动路线")
+				}
+			} else {
+				planned, planErr = s.planner.PlanRoute(buildContext, route.PlanRequest{
+					Start: started.Start, Via: waypoints,
+					TargetDistanceM: request.TargetDistanceM,
+					MaxDistanceM:    plan.Rules.MaxDistanceM,
+					CandidateCount:  area.CandidateCount,
+					Boundary:        area.Boundary,
+					Seed:            request.Seed,
+					FairnessKey:     "account:" + stored.ID,
+				})
+			}
 			if planErr != nil {
 				return activity.Run{}, planErr
 			}

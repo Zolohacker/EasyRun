@@ -128,6 +128,8 @@ func (a Account) FaceProfile() FaceProfile {
 }
 
 type AutomationJob struct {
+	RouteMode            string     `json:"route_mode"`
+	ManualRouteID        string     `json:"manual_route_id,omitempty"`
 	ID                   string     `json:"id"`
 	AccountID            string     `json:"account_id"`
 	PlanID               string     `json:"plan_id"`

@@ -16,6 +16,7 @@ import (
 	"github.com/Zolohacker/EasyRun/internal/activity"
 	"github.com/Zolohacker/EasyRun/internal/platform"
 	"github.com/Zolohacker/EasyRun/internal/protocol"
+	"github.com/Zolohacker/EasyRun/internal/route"
 	"github.com/Zolohacker/EasyRun/internal/safety"
 	"github.com/Zolohacker/EasyRun/internal/store"
 	"github.com/robfig/cron/v3"
@@ -329,6 +330,25 @@ func (s *Scheduler) execute(parent context.Context, item workItem, workerProcess
 		finish("failed", "目标协议提交服务未配置", nil, "")
 		return
 	}
+	var manualRoute *route.Route
+	if jobContext.Job.RouteMode == "custom" {
+		m, e := s.store.GetManualRoute(ctx, jobContext.Job.ManualRouteID)
+		effectiveJob := jobContext.Job
+		effectiveJob.TargetDistanceM = selection.TargetDistanceM
+		if e == nil {
+			e = platform.ValidateJobRoute(effectiveJob, m, jobContext.Plan, jobContext.Area)
+		}
+		var trimmed route.Route
+		if e == nil {
+			trimmed, e = route.ManualPrefix(m.ID, m.Points, selection.TargetDistanceM)
+		}
+		if e != nil {
+			s.failed.Add(1)
+			finish("failed", e.Error(), nil, "")
+			return
+		}
+		manualRoute = &trimmed
+	}
 	if s.billing != nil {
 		if err := s.billing.Reserve(ctx, execution.ID, jobContext); err != nil {
 			s.skipped.Add(1)
@@ -345,7 +365,8 @@ func (s *Scheduler) execute(parent context.Context, item workItem, workerProcess
 		}
 	}()
 	submission, run, err := s.submitter.Submit(ctx, jobContext.Account, jobContext.Plan, jobContext.Area, activity.SubmissionRequest{
-		TargetDistanceM:      jobContext.Job.TargetDistanceM,
+		TargetDistanceM:      selection.TargetDistanceM,
+		ManualRoute:          manualRoute,
 		Profile:              jobContext.Plan.Profile,
 		Seed:                 seed,
 		AccountID:            jobContext.Account.ID,

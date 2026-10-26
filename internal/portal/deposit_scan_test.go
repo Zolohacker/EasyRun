@@ -121,7 +121,7 @@ func TestManualDepositScanCooldownIsolationAndRestart(t *testing.T) {
 			case http.StatusTooManyRequests:
 				limited.Add(1)
 				seconds, err := strconv.Atoi(res.Header.Get("Retry-After"))
-				if err != nil || seconds <= 0 || seconds > 180 {
+				if err != nil || seconds <= 0 || seconds > 60 {
 					t.Error("missing or incorrect cooldown header", seconds, err)
 				}
 			default:
@@ -155,7 +155,7 @@ func TestManualDepositScanCooldownIsolationAndRestart(t *testing.T) {
 	}
 	wg.Wait()
 	v := scanStateOf(t, a, server.URL)
-	if v.State != "succeeded" || v.CreditedMicro != MicroUSDT || v.DepositCount != 1 || v.RetryAfterSeconds <= 0 || v.RetryAfterSeconds > 180 || calls.Load() != 2 || otherCalls.Load() != 0 {
+	if v.State != "succeeded" || v.CreditedMicro != MicroUSDT || v.DepositCount != 1 || v.RetryAfterSeconds <= 0 || v.RetryAfterSeconds > 60 || calls.Load() != 2 || otherCalls.Load() != 0 {
 		t.Fatalf("scoped recovery/result failed: %+v, calls=%d other=%d", v, calls.Load(), otherCalls.Load())
 	}
 	var balance int64
@@ -176,7 +176,7 @@ func TestManualDepositScanCooldownIsolationAndRestart(t *testing.T) {
 	}
 	requestTest(t, b, server.URL, "POST", "/api/v1/portal/wallet/scan", map[string]any{}, 429)
 	// Advance only this isolated fixture's cooldown, never the production clock.
-	if _, err = s.db.Exec(ctx, `UPDATE portal_deposit_scan_requests SET requested_at=clock_timestamp()-interval '181 seconds' WHERE user_id='a'`); err != nil {
+	if _, err = s.db.Exec(ctx, `UPDATE portal_deposit_scan_requests SET requested_at=clock_timestamp()-interval '61 seconds' WHERE user_id='a'`); err != nil {
 		t.Fatal(err)
 	}
 	requestTest(t, a, server.URL, "POST", "/api/v1/portal/wallet/scan", map[string]any{}, 202)

@@ -6,8 +6,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"image"
-	"image/png"
 	"io"
 	"net/http"
 	"net/http/cookiejar"
@@ -70,12 +68,6 @@ func testService(t *testing.T) (*Service, *store.PostgresStore) {
 	return s, database
 }
 
-type testFaces struct{ calls atomic.Int32 }
-
-func (f *testFaces) SetCustomFace(context.Context, string, string, []byte) (platform.FaceProfile, error) {
-	f.calls.Add(1)
-	return platform.FaceProfile{}, nil
-}
 func portalTestServer(s *Service) *httptest.Server {
 	mux := http.NewServeMux()
 	s.Mount(mux)
@@ -379,48 +371,9 @@ func TestPortalIntegration(t *testing.T) {
 	if resp.StatusCode != 403 {
 		t.Fatal("cross-origin write accepted")
 	}
-	linkPath := "/api/v1/portal/accounts/" + account.ID + "/face-link"
-	requestTest(t, bClient, server.URL, "POST", linkPath, map[string]int{"days": 30}, 404)
-	var link struct {
-		URL string `json:"url"`
-	}
-	json.Unmarshal(requestTest(t, guest, server.URL, "POST", linkPath, map[string]int{"days": 30}, 201), &link)
-	linkURL, _ := url.Parse(link.URL)
-	secret := strings.TrimPrefix(linkURL.Fragment, "token=")
-	publicPath := "/api/v1/public/face/" + account.ID
-	getPublic := func(secret string, want int) {
-		t.Helper()
-		r, _ := http.NewRequest("GET", server.URL+publicPath, nil)
-		r.Header.Set("Authorization", "Bearer "+secret)
-		resp, e := newClient().Do(r)
-		if e != nil {
-			t.Fatal(e)
-		}
-		resp.Body.Close()
-		if resp.StatusCode != want {
-			t.Fatalf("public token status=%d want=%d", resp.StatusCode, want)
-		}
-	}
-	getPublic(secret, 200)
-	getPublic("wrong", 404)
-	faces := &testFaces{}
-	s.Faces = faces
-	var imageBytes bytes.Buffer
-	png.Encode(&imageBytes, image.NewRGBA(image.Rect(0, 0, 64, 64)))
-	r, _ := http.NewRequest("PUT", server.URL+publicPath, &imageBytes)
-	r.Header.Set("Authorization", "Bearer "+secret)
-	r.Header.Set("Origin", server.URL)
-	r.Header.Set("Content-Type", "image/png")
-	resp, e = newClient().Do(r)
-	if e != nil {
-		t.Fatal(e)
-	}
-	resp.Body.Close()
-	if resp.StatusCode != 200 || faces.calls.Load() != 1 {
-		t.Fatal("public portrait upload failed", resp.StatusCode)
-	}
-	requestTest(t, guest, server.URL, "POST", linkPath, map[string]int{"days": 30}, 201)
-	getPublic(secret, 404)
+	// Legacy account-wide capabilities must not bypass task paid-scope checks.
+	requestTest(t, guest, server.URL, "POST", "/api/v1/portal/accounts/"+account.ID+"/face-link", map[string]int{"days": 30}, 410)
+	requestTest(t, newClient(), server.URL, "GET", "/api/v1/public/face/"+account.ID, nil, 410)
 	var batch struct {
 		Codes []string `json:"codes"`
 	}
@@ -481,6 +434,17 @@ func TestPortalIntegration(t *testing.T) {
 		t.Fatal(e)
 	}
 	jc := platform.JobContext{Job: job, Account: account, Plan: plan, Area: area}
+	if e = s.Reserve(ctx, execution.ID, jc); e == nil {
+		t.Fatal("new unpaid execution was allowed")
+	}
+	// A wallet reservation created before the escrow upgrade is still idempotent
+	// and refundable on failure. New work above must instead have a paid order.
+	if _, e = s.db.Exec(ctx, `UPDATE portal_users SET balance_micro=balance_micro-$2 WHERE id=$1`, account.OwnerUserID, MicroUSDT); e != nil {
+		t.Fatal(e)
+	}
+	if _, e = s.db.Exec(ctx, `INSERT INTO portal_charges(execution_id,user_id,amount_micro,state) VALUES($1,$2,$3,'reserved')`, execution.ID, account.OwnerUserID, MicroUSDT); e != nil {
+		t.Fatal(e)
+	}
 	for i := 0; i < 8; i++ {
 		wg.Add(1)
 		go func() {

@@ -1,199 +1,78 @@
 <div align="center">
   <img src="./docs/assets/easyrun-banner.svg" alt="EasyRun · 智能代跑平台" width="100%" />
-
   <p><strong>面向闪动校园的智能代跑平台</strong></p>
-
   <p>
     <a href="https://github.com/Zolohacker/EasyRun/releases/latest"><img alt="最新版本" src="https://img.shields.io/github/v/release/Zolohacker/EasyRun?style=flat-square&amp;color=5965bd" /></a>
-    <img alt="Go 1.23" src="https://img.shields.io/badge/Go-1.23-00ADD8?style=flat-square&amp;logo=go&amp;logoColor=white" />
-    <img alt="React 19" src="https://img.shields.io/badge/React-19-61DAFB?style=flat-square&amp;logo=react&amp;logoColor=17233c" />
-    <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-5.7-3178C6?style=flat-square&amp;logo=typescript&amp;logoColor=white" />
-    <img alt="PostgreSQL 17" src="https://img.shields.io/badge/PostgreSQL-17-4169E1?style=flat-square&amp;logo=postgresql&amp;logoColor=white" />
-    <img alt="MIT" src="https://img.shields.io/badge/license-MIT-5965bd?style=flat-square" />
+    <img alt="Go" src="https://img.shields.io/badge/Go-1.23-00ADD8?style=flat-square" />
+    <img alt="React" src="https://img.shields.io/badge/React-19-61DAFB?style=flat-square" />
+    <img alt="PostgreSQL" src="https://img.shields.io/badge/PostgreSQL-17-4169E1?style=flat-square" />
+    <a href="./LICENSE"><img alt="MIT" src="https://img.shields.io/badge/license-MIT-5965bd?style=flat-square" /></a>
   </p>
-
   <p>
+    <a href="#features">功能亮点</a> ·
+    <a href="#quick-start">快速部署</a> ·
     <a href="https://github.com/Zolohacker/EasyRun/releases/latest">下载发行版</a> ·
-    <a href="#preview">界面预览</a> ·
-    <a href="#features">项目亮点</a> ·
-    <a href="#quick-start">快速开始</a> ·
     <a href="./CHANGELOG.md">更新日志</a> ·
-    <a href="#support">支持维护</a> ·
-    <a href="#contributing">参与贡献</a>
+    <a href="#docs">文档</a>
   </p>
 </div>
 
----
-
 <a id="support"></a>
 
-## ❤️ 支持维护
+## 支持维护
 
-如果希望我持续维护 EasyRun、跟进闪动校园版本变化并改进项目，请考虑捐赠支持。你的支持是持续维护的动力，感谢每一份鼓励！
+**如果希望我持续维护项目、跟进闪动校园版本更新，请捐赠支持。**
 
-**USDT · TRON（TRC20）捐赠地址：**
+USDT · TRON（TRC20）：
 
 ```text
 TSuL6W7SsLJpWkYkJSdXP64LGetttttttt
 ```
 
-请使用 TRON（TRC20）网络，并在转账前核对完整地址。捐赠完全自愿；此地址仅用于支持项目维护，**不是平台客户的充值地址**。
-
-## ✨ 项目简介
-
-**EasyRun** 是面向 **闪动校园**的**智能代跑平台**。基于 Go、React 与 PostgreSQL，将账号、计划、路线、任务和记录集中到一个可自行部署的工作台中，支持个人使用与可选客户前台。
-
-**当前适配版本：闪动校园 Android `8.7.9`**（Build `26101910`）。这是本项目已适配的客户端基线，不代表其他版本已经验证兼容。
-
-后端使用 Go 独立实现协议适配与任务调度，前端使用 React + TypeScript。多账号管理、多地图 Key、持久化缓存和执行日志均在同一控制台中提供。
-
-> 项目自有代码采用 **MIT** 许可证。随附第三方人脸模型保留上游非商业研究用途限制，详见 [资源说明](./models/NOTICE.md)。
-
-后台总览提供客户端最新版本 / 强更状态与平台更新。客户端强更时服务端暂停跑步自动化；平台支持稳定 Release 检查、一键更新、闲时自动安装与失败回滚。配置与发布方式见 [版本门禁与平台更新](./docs/updates.md)。
-
-<a id="preview"></a>
-
-## 🖼 界面预览
-
-浅色工作区、深色侧栏与靛蓝主色，保留卡片布局。液态玻璃、轻量悬停反馈和统一线性图标贯穿后台与客户前台；窄屏自动切换紧凑列表和底部导航。
-
-<p align="center">
-  <img src="./docs/assets/overview.png" alt="EasyRun v0.1.2 管理后台运行总览，使用虚构演示数据" width="100%" />
-</p>
-
-<details>
-  <summary>查看自动任务与移动端</summary>
-  <p><img src="./docs/assets/tasks.png" alt="桌面端自动任务列表，使用虚构演示数据" width="100%" /></p>
-  <p align="center"><img src="./docs/assets/mobile-tasks.png" alt="移动端自动任务卡片与底部导航，使用虚构演示数据" width="320" /></p>
-</details>
-
-> 截图使用独立演示环境中的虚构账号与记录，不含真实客户数据。悬停效果仅在适用的指针设备上启用，尊重系统「减少动态效果」偏好；不支持背景模糊的浏览器使用清晰的静态样式。
-
-**v0.1.2 · 界面焕新**：统一配色与路线形标志，优化总览指标、任务列表、执行日志和移动端排版，精简重复说明。详见 [更新日志](./CHANGELOG.md)。
-
-**v0.1.6 · 自动任务超时修复**：代码默认值、调度器兜底与容器配置统一为 **90 分钟**，保留环境变量自定义覆盖。已启用程序持久卷的容器可在后台更新，旧容器仍需首次迁移。详见 [更新日志](./CHANGELOG.md) 与 [迁移说明](./docs/updates.md#目录权限与容器更新)。
+请核对网络和完整地址。捐赠自愿，**此地址不是平台客户的充值地址**。
 
 <a id="features"></a>
 
-## 🚀 项目亮点
+## 功能亮点
 
-### 工作台与客户前台
+一个工作台管理账号、计划、路线、任务和记录，支持个人使用与可选客户前台。
 
-- 运行总览、账号矩阵、路线测试、自动任务、执行日志各司其职，长列表分页展示。
-- 桌面端紧凑列表，窄屏自动重排；搜索下拉、弹窗与触控按钮保持一致的交互。
-- 明确区分运行、成功、等待和失败状态；长名称与记录号截断时可悬停查看完整内容。
+**当前适配：闪动校园 Android `8.7.9` / Build `26101910`。** 其他版本未承诺兼容。
 
-- 首次初始化设置超管密码，选择个人 / 商业模式；旧数据自动归属超管。
-- 客户自助注册、可选邮箱验证码，支持 SMTP、SMTPS、STARTTLS 邮件配置。
-- 超管 / 管理员 / 客户分级权限，客户账号、计划、任务与记录在服务端隔离。
-- 按次、按公里、完整计划套餐计费；充值码批量生成、兑换与事务账本。
-- HD 派生客户专属 TRC20 地址，用户手动检查充值、每 3 分钟限一次，固化核实后入账；Feee 能量租赁与定时 / 手动归集。
-- USDT 充值页展示客户专属地址二维码，浏览器本地生成，不向第三方二维码服务发送地址。
-- 系统配置、计费管理、用户管理独立分区；账号矩阵支持按所属用户筛选。
-- 客户前台与管理后台适配移动端：底部导航、账号 / 任务卡片、可搜索下拉和可滚动弹窗。
-- 支持配置发卡网购买入口，引导客户购买充值码后返回兑换。
-- 账号人脸设置内生成专用修改链接，保留免登录上传页面，支持到期、撤销及轮换。
-- 全新初始化默认开启主网 USDT 收款，自动创建 24 词 BIP39 钱包；默认 TokenPocket 节点免填 API Key，超管验证密码后可导出助记词备份。升级保留已有钱包与网络，旧版支持原始 seed 导出。
-- [查看完整部署、账务、钱包备份与 Linux 推理说明](./docs/portal.md)。自动归集默认关闭，真实资金流程仍需部署者进行小额联调。
-- [Shasta 真实充值测试记录](./docs/testnet-recharge-verification.md)：已验证测试币到账、重复扫描去重和重启持久化；不代表主网验收完成。
+| 功能 | 重点 |
+| --- | --- |
+| 多账号管理 | 密码 / 短信登录、会话维护、同步账号计划与区域、历史记录查询 |
+| 路线管理 | 地图手绘与自动规划；按账号、计划和区域保存，预览轨迹与长度 |
+| 自动任务 | 固定时间或计划时段随机；执行前检查日 / 周次数和里程额度 |
+| 客户与计费 | 分级权限、用户数据隔离；按次、按公里、完整计划套餐 |
+| 下单与充值 | 下单预扣、未执行额度增减退款；USDT 专属地址、充值码、钱包归集 |
+| 独立配置链接 | 帮他人下单后，在已付费范围内配置人脸、路线和参数；支持轮换与撤销 |
+| 地图与性能 | 多 Key 独立 QPS、公平调度、PostgreSQL 持久化缓存 |
+| 部署与维护 | 自动生成主密钥、随附模型、移动端适配、客户端强更门禁、平台在线更新 |
 
-### 账号与会话
+- **未配置地图 Key 也可使用手绘路线**；自动路线需在后台添加 Key。
+- **成功后结算，不再次扣余额**；执行中和已结算部分不支持退款。
+- **USDT 收款弹窗打开时每分钟检查到账**，关闭后停止发起新检查。
 
-- 支持密码登录与短信验证码登录，远端验证成功后才持久化账号。
-- 自动处理登录过程中的滑块挑战；短信验证码保留人工输入环节。
-- 密码、`token` 与 `satoken` 使用独立 AAD 的 AES-256-GCM 加密保存。
-- 接口返回会话失效后自动标记账号，并提供按保存凭据重新登录的流程。
-- 自动同步账号绑定的跑步计划、校园区域和服务端历史记录。
+<a id="preview"></a>
 
-### 计划与规则
+## 界面预览
 
-- 直接读取计划返回的距离、配速、步频、步幅、有效日期和允许运动时段。
-- 支持按公里数或按次数计算的计划，并处理每日、每周次数与里程上限。
-- 在规则有效范围的中间 70% 内动态抽样，避免长期使用固定参数。
-- 任务执行前重新核对服务端记录与规则额度，超出限制时记录明确原因。
+<p align="center"><img src="./docs/assets/overview.png" alt="管理后台界面示意，使用虚构演示数据" width="100%" /></p>
 
-### 路线规划
-
-- 基于地图步行路径服务构建围栏内路网，并随机选择路网节点规划路线。
-- 道路数据不足时，自动切换为围栏内场地路线生成器。
-- 支持服务端打卡点作为必经节点；起点、终点与路线形状均不强制闭环。
-- 通过距离误差、重复率、越界率和打卡点覆盖率综合选择候选路线。
-- 多 API Key 独立令牌桶、全局公平调度、重试、`singleflight` 请求合并。
-- L1 进程内 LRU 与 L2 PostgreSQL 持久化缓存协同工作。
-
-### 自动任务
-
-- 支持固定时间与计划规定时段随机两种调度方式。
-- 支持多 Worker × 多线程并发，配置可在控制台热更新。
-- 计划、区域和距离均按账号资源自动约束。
-- `next_run_at`、执行状态、远端记录号和失败原因全部持久化。
-- 起跑前检查并异常结束遗留的阳光跑记录，复查确认后再开始；任一步失败时停止本次任务。
-- 请求与采样按照客户端时间轴渐进执行，不集中突发发送。
-
-### 数据与可观测性
-
-- 运行记录包含距离、配速、步数、步频、步幅、分段与地图轨迹。
-- 内置一致性预检，展示状态解释与无效原因，而不是原始响应堆栈。
-- 地图指标包含各 Key QPS、令牌发放、缓存命中、重试、排队和在途请求。
-- 提供健康检查、运行配置、OpenAPI 描述和结构化请求日志。
-
-## 🧱 技术栈
-
-| 层级 | 技术 |
-|---|---|
-| 后端 | Go 1.23、标准库 HTTP、pgx、robfig/cron |
-| 前端 | React 19、TypeScript、Vite、Leaflet、Lucide |
-| 数据库 | PostgreSQL 17 |
-| 地图 | 高德地图 Web 服务 + 地图瓦片展示 |
-| 安全 | AES-256-GCM、独立 AAD、系统凭据隔离 |
-| 推理 | 可选 Windows x64 / Linux amd64、arm64 CGO + MNN 本地人脸模型 |
-| 部署 | 单二进制嵌入前端、Docker Compose、Windows 本地脚本 |
-
-## 🗺 系统架构
-
-```mermaid
-flowchart LR
-    UI[React 控制台] --> API[Go HTTP API]
-    API --> ACC[账号与会话]
-    API --> JOB[任务调度器]
-    API --> ROUTE[路线规划器]
-    ACC --> PROTO[协议适配层]
-    JOB --> RUNNER[运行编排器]
-    RUNNER --> ROUTE
-    RUNNER --> PROTO
-    ROUTE --> GATE[多 Key 公平令牌桶]
-    GATE --> MAP[地图路径服务]
-    ACC --> DB[(PostgreSQL)]
-    JOB --> DB
-    ROUTE --> CACHE[L1 LRU / L2 PostgreSQL]
-    CACHE --> DB
-```
-
-一次自动任务的主要流程：
-
-```text
-读取账号会话 → 校验计划与额度 → 获取起跑上下文/打卡点
-→ 生成候选路线 → 按真实时间轴生成与发送数据
-→ 完成结算 → 保存执行结果与远端记录号
-```
+<details>
+  <summary>任务列表与移动端</summary>
+  <p><img src="./docs/assets/tasks.png" alt="桌面端任务列表，使用虚构演示数据" width="100%" /></p>
+  <p align="center"><img src="./docs/assets/mobile-tasks.png" alt="移动端任务列表，使用虚构演示数据" width="320" /></p>
+</details>
 
 <a id="quick-start"></a>
 
-## 📦 快速开始
-
-### 选择部署方式
-
-| 方式 | 适用场景 | 入口 |
-|---|---|---|
-| Docker Compose | 新部署，同时启动应用和数据库 | 下方快速开始 |
-| 完整发行包 | 已有 PostgreSQL，不想安装 Go / Node.js | [下载最新版本](https://github.com/Zolohacker/EasyRun/releases/latest) |
-| Windows 本地源码 | 本地开发与调试 | 下方本地运行说明 |
-
-发行包提供 Windows amd64、Linux amd64 / arm64，包含前端、模型和对应平台运行库，附 `checksums.txt`。解压后配置数据库连接，从解压目录启动；启用在线更新还需独立守护进程，见 [启动与更新说明](./docs/updates.md#启动方式)。Linux 使用 glibc 环境并准备 `libstdc++6`、`libgomp1`；arm64 本地推理尚待真实硬件验收。
+## 快速部署
 
 ### Docker Compose
 
-准备环境：Docker Engine 24+、Docker Compose v2。
+准备 Docker 与 Compose v2：
 
 ```bash
 git clone https://github.com/Zolohacker/EasyRun.git
@@ -201,220 +80,50 @@ cd EasyRun
 cp .env.example .env
 ```
 
-编辑 `.env` 配置随机数据库密码（建议字母数字）：
-
-```dotenv
-POSTGRES_PASSWORD=USE_A_RANDOM_ALPHANUMERIC_PASSWORD
-COOKIE_SECURE=false
-```
-
-首次启动自动生成并保存主密钥到 `data/account-master.key`（Docker 使用持久卷）。无需手填主密钥和地图 Key；初始化后按总览提示，在「系统配置 → 地图与执行器」添加地图 Web 服务 Key。人脸模型与三平台推理库随包提供，启动自动识别路径。[首次启动、备份与旧部署迁移](./docs/first-run.md)。
-
-首次访问直接设置超级管理员邮箱、密码及使用模式，无需额外令牌；本机、容器和反向代理部署使用相同流程。正式 HTTPS 部署把 `COOKIE_SECURE` 设置为 `true`。
-
-启动：
+先修改 `.env` 中的 **`POSTGRES_PASSWORD`** 为随机数据库密码，再启动：
 
 ```bash
 docker compose up -d --build
 ```
 
-访问：[本地控制台](http://127.0.0.1:8080/)。
+访问 [管理后台](http://localhost:8080/admin)，设置超管密码并选择个人 / 商业模式。客户入口为 [客户前台](http://localhost:8080/app)，可在后台关闭。
 
-首次设置顺序：**设置超管 → 选择使用模式 → 在系统配置添加地图 Key → 添加账号**。初始化后请备份数据库、`data/account-master.key` 与钱包助记词；不要删除持久卷进行升级。
+首次使用只需：
 
-### Windows 本地源码运行
+1. 在「系统配置 → 地图与执行器」按需添加高德 **Web 服务 Key**，每个 Key 默认 **3 QPS**。
+2. 添加账号、同步计划与区域，再配置路线和任务。
+3. 备份数据库、`data/account-master.key` 和钱包助记词。
 
-准备环境：Go 1.23+、PostgreSQL 17 客户端工具；启用本地人脸推理需可用的 GCC / CGO 工具链。仓库已包含构建后的前端，仅修改前端时需要 Node.js 20+。
+主密钥与钱包自动生成；地图 Key 在后台填写，随附模型自动加载，无需手填模型路径。公网部署使用 HTTPS，并设置 `COOKIE_SECURE=true`。
 
-```powershell
-git clone https://github.com/Zolohacker/EasyRun.git
-Set-Location EasyRun
+> 新部署默认开启主网 USDT 收款，自动归集默认关闭。测试网已验证到账与去重，**主网仍需自行小额验收**；详细步骤见 [钱包与计费文档](./docs/portal.md)。
 
-# 首次初始化本地数据库；主密钥由应用首次启动自动生成
-.\scripts\local-db.ps1 init
+### 二进制 / 源码
 
-# 使用本地推理时启用 CGO（需先安装 GCC）
-$env:CGO_ENABLED = '1'
+- **完整发行包**：[Windows amd64、Linux amd64 / arm64](https://github.com/Zolohacker/EasyRun/releases/latest)，包含前端、模型、运行库及校验文件；配置 PostgreSQL 后按 [启动说明](./docs/updates.md#启动方式) 运行。Linux arm64 本地推理仍待真实硬件验收。
+- **源码开发**：见 [开发与测试](./docs/development.md)。全部配置项见 [`.env.example`](./.env.example)。
 
-# 构建并以守护模式启动
-.\scripts\start-local.ps1 -Rebuild
-```
+## 升级提醒
 
-本地数据库仅监听 `127.0.0.1:56432`。生成的 `.env.local`、数据库目录、日志、备份和账号主密钥均已被 Git 忽略。
+**v0.1.7 包含路线管理和预扣账务迁移。** 升级前备份数据库与主密钥，在任务空闲时更新；已有付费订单后，不要仅回滚到不支持预扣账务的旧程序。
 
-常用维护命令：
+已启用持久化程序卷的容器支持后台一键更新；旧容器需先完成 [迁移](./docs/updates.md#目录权限与容器更新)。升级保留数据库、数据和程序卷，**不要执行 `docker compose down -v`**。旧的人脸专用链接需在任务列表重新生成独立配置链接。
 
-```powershell
-.\scripts\local-db.ps1 status
-.\scripts\local-db.ps1 start
-.\scripts\local-db.ps1 backup
-.\scripts\stop-local-db.ps1
-```
+<a id="docs"></a>
 
-## 🧭 基本使用
+## 文档与贡献
 
-| 页面 | 主要用途 |
-|---|---|
-| 运行总览 | 查看账号就绪情况、排期、执行状态、服务健康与版本更新 |
-| 账号矩阵 | 添加账号、维护会话、查看计划进度与历史详情；管理人脸设置与修改链接 |
-| 路线测试 | 查看校园区域、候选路线和距离；在地图上检查规划结果 |
-| 自动任务 | 按账号选择计划、区域和时间，配置距离及每日 / 每周额度 |
-| 执行日志 | 按页查看运行结果、远端记录号及失败原因 |
-| 系统配置 | 管理地图 Key 与各自 QPS、Worker、使用模式、客户入口及邮件服务 |
-| 计费管理 / 用户管理 | 管理价格、充值方式、钱包归集、用户及管理员权限 |
+| 文档 | 内容 |
+| --- | --- |
+| [首次启动与备份](./docs/first-run.md) | 初始化、主密钥、数据卷与旧部署迁移 |
+| [路线与下单配置](./docs/manual-routes.md) | 手绘路线、预扣 / 退款、独立配置链接 |
+| [客户前台与计费](./docs/portal.md) | 邮件、充值码、钱包备份、归集与 Linux 推理 |
+| [版本与在线更新](./docs/updates.md) | 客户端强更门禁、守护进程、容器更新 |
+| [开发与测试](./docs/development.md) | 本地构建、集成测试与贡献流程 |
+| [更新日志](./CHANGELOG.md) | 各版本变更和升级说明 |
 
-登录成功后，计划、区域和账号资料自动同步。客户前台仅展示本人数据和已启用的功能；后台可选择是否开放注册与充值方式。
+欢迎提交 [Issue](https://github.com/Zolohacker/EasyRun/issues) 或 Pull Request。请附复现步骤，移除密钥、账号、学号、手机号、人脸和真实轨迹等敏感数据。
 
-### 升级与备份
+## 许可证
 
-- 超管在「运行总览 → 平台更新」检查稳定版，支持一键更新及失败回滚；闲时自动安装默认关闭。
-- 在线安装需要守护模式且任务、钱包事务空闲。新版容器通过独立程序卷支持一键更新、闲时自动安装与回滚；基础镜像和系统依赖仍通过重建镜像更新。
-- **本次 v0.1.6 不新增数据库迁移**，保留账号、任务配置、余额、钱包和模型文件。升级前仍应备份数据库和主密钥。
-- 提示目录写入检测失败时，检查服务运行账号对程序目录和 `.easyrun-update` 的权限；修复后重新检查。旧容器需先重建一次以接入 `easyrun_runtime` 程序卷，见 [容器迁移步骤](./docs/updates.md#目录权限与容器更新)。
-- [首次启动与数据备份](./docs/first-run.md) · [版本检查、更新与回滚](./docs/updates.md) · [客户前台、计费与钱包](./docs/portal.md)
-
-## ⚙️ 配置参考
-
-| 环境变量 | 默认值 | 说明 |
-|---|---:|---|
-| `HTTP_ADDR` | `:8080` | HTTP 监听地址 |
-| `DATABASE_URL` | 必填 | PostgreSQL DSN |
-| `POSTGRES_DB` | `easyrun` | Docker Compose 数据库名 |
-| `POSTGRES_USER` | `easyrun` | Docker Compose 数据库用户 |
-| `POSTGRES_PASSWORD` | 必填 | Docker Compose 数据库密码，建议使用随机字母数字 |
-| `DATABASE_MAX_CONNS` | `12` | 数据库最大连接数 |
-| `EASYRUN_DATA_DIR` | `data` | 主密钥持久目录，必须备份并跨升级保留 |
-| `MAP_API_BASE_URL` | `https://restapi.amap.com` | 地图 Web 服务根地址 |
-| `MAP_API_PATH` | `/v3/direction/walking` | 步行路径接口 |
-| `MAP_API_QPS` | `3` | 首个 Key 的默认独立 QPS |
-| `MAP_API_BURST` | `2` | 每个 Key 的令牌桶容量 |
-| `MAP_ROUTE_CANDIDATES` | `4` | 默认路线候选数，范围 1–8 |
-| `AUTOMATION_WORKERS` | `2` | 初始 Worker 数 |
-| `AUTOMATION_WORKER_CONCURRENCY` | `1` | 每个 Worker 的初始并发数 |
-| `AUTOMATION_RUN_TIMEOUT` | `90m` | 单次自动任务总超时；代码与容器默认一致，显式配置可覆盖 |
-| `PROTOCOL_BASE_URL` | 见示例配置 | 协议服务根地址 |
-| `PROTOCOL_TIMEOUT` | `20s` | 单个协议请求超时 |
-| `FACE_DETECT_PIXEL_SIZE` | `320` | 检测输入级别：160、320 或 640 |
-
-完整示例见 [`.env.example`](./.env.example)。地图 Key 仅在「系统配置」页面填写并持久化；各 Key QPS、Worker 数和线程并发可热更新。原环境主密钥仅保留为旧部署迁移入口，新部署免填；随附模型自动发现，无需手配路径。
-
-## 🔌 API 与协议基线
-
-当前支持的 **闪动校园 Android** 客户端适配基线：
-
-| 字段 | 值 |
-|---|---|
-| App Version | `8.7.9` |
-| Build Version | `26101910` |
-| App Code | `SD001` |
-| Platform | `2` |
-
-主要管理 API：
-
-- `GET /healthz`
-- `GET /api/v1/config`
-- `GET /api/v1/map/metrics`
-- `GET|PUT /api/v1/system/settings`
-- `GET|POST /api/v1/accounts`
-- `GET /api/v1/accounts/{id}/records`
-- `GET /api/v1/accounts/{id}/records/{record_id}`
-- `GET /api/v1/plans`
-- `GET /api/v1/areas`
-- `POST /api/v1/routes/plan`
-- `GET|POST /api/v1/jobs`
-- `POST /api/v1/jobs/{id}/run`
-- `GET /api/v1/executions`
-
-完整定义见 [`frontend/public/openapi.json`](./frontend/public/openapi.json)。
-
-## 🧩 项目结构
-
-```text
-EasyRun/
-├─ cmd/server/              # 依赖装配、服务启动与优雅退出
-├─ frontend/                # React + TypeScript 控制台
-├─ internal/activity/       # 轨迹、分段、汇总与一致性校验
-├─ internal/automation/     # 调度、任务领取与工作池
-├─ internal/faceengine/     # 可选的本地模型推理封装
-├─ internal/geo/            # 测地线、补点与路径采样
-├─ internal/httpapi/        # REST API 与嵌入式前端
-├─ internal/mapapi/         # 地图限流、缓存、重试与请求合并
-├─ internal/platform/       # 账号、计划、区域和任务模型
-├─ internal/protocol/       # 登录、签名、加密与运行协议
-├─ internal/runner/         # 会话、同步和运行提交编排
-├─ internal/securestore/    # AES-GCM 凭据保险箱
-├─ internal/store/          # PostgreSQL 迁移与仓储
-└─ scripts/                 # Windows 本地开发脚本
-```
-
-## 🛠 开发与验证
-
-```powershell
-# 前端类型检查与生产构建
-Push-Location frontend
-npm ci
-npm test
-npm run build
-Pop-Location
-
-# Go 格式化、静态检查、测试与构建
-gofmt -w cmd internal
-go vet ./...
-go test ./...
-go build -buildvcs=false -trimpath -o .\bin\easyrun.exe .\cmd\server
-```
-
-地图调度器包含竞态测试，修改密钥池、缓存或并发逻辑后建议额外执行：
-
-```powershell
-go test -race ./internal/mapapi
-```
-
-## 🔐 数据与密钥
-
-- 不要提交 `.env`、`.env.local`、`data`、数据库目录、备份、日志、自定义模型或真实账号数据；仓库明确随附的通用模型和 SDK 除外。
-- 每个部署自动生成独立随机主密钥，请离线备份 `data/account-master.key`；文件丢失时程序不会静默生成新钥匙覆盖旧加密部署。
-- 地图 API Key 在 PostgreSQL 中使用 AES-GCM 加密保存，接口只返回掩码。
-- 发布日志、截图或问题报告前，请移除账号、学号、手机号、轨迹与人脸图片。
-
-## 🧭 Roadmap
-
-- [x] 多账号与加密会话
-- [x] 多地图 Key 独立 QPS 与公平调度
-- [x] PostgreSQL 路线缓存
-- [x] 计划规则与运行额度同步
-- [x] 自动任务与执行记录
-- [x] 历史轨迹地图与一致性预检
-- [x] Linux amd64 本地模型真实推理验证（arm64 运行库接口适配待硬件验证）
-- [x] 客户前台、角色与数据隔离、可选邮件验证、计费及充值码
-- [x] TRC20 HD 钱包、固化事件入账与归集工作流（主网需小额联调）
-- [ ] macOS 本地模型推理支持
-- [ ] 完整端到端测试与演示数据模式
-- [ ] Prometheus 指标与 OpenTelemetry 链路追踪
-- [x] 移动端底部导航、卡片列表、表单弹层与充值二维码
-- [x] 液态玻璃主题、统一图标、紧凑列表与减少动态效果适配
-- [ ] 国际化
-- [x] 公开源码、自动主密钥、随附模型与首次部署指南
-
-<a id="contributing"></a>
-
-## 🤝 参与贡献
-
-欢迎通过 Issue 与 Pull Request 参与：
-
-1. Fork 本仓库并创建功能分支：`git switch -c feat/your-feature`
-2. 保持提交聚焦，并为行为变更补充测试
-3. 确保 `go test ./...`、`go vet ./...`、前端 `npm test` 与 `npm run build` 通过
-4. 提交 Pull Request，说明动机、实现和验证方式
-
-## 📄 许可证与项目状态
-
-EasyRun 自有源码采用 [MIT](./LICENSE) 许可证。第三方服务、模型、原生 SDK、品牌与数据保留各自权利；随附模型的非商业研究用途限制见 [models/NOTICE.md](./models/NOTICE.md)。
-
-EasyRun 与目标客户端及相关服务提供方不存在官方隶属或背书关系。请仅在你有权管理的账号、数据和环境中使用，并遵守适用规则。
-
----
-
-<div align="center">
-  <sub>Built with Go, React and PostgreSQL · EasyRun</sub>
-</div>
+自有源码采用 [MIT](./LICENSE)。**随附第三方模型另有非商业研究用途限制**，详见 [模型资源说明](./models/NOTICE.md)。本项目与闪动校园及相关服务提供方无官方隶属或背书关系。

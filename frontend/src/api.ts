@@ -1,4 +1,4 @@
-import type { Account, AccountInput, AccountLoginResult, AccountResources, Area, Config, Execution, FaceDetectionResult, FaceProfile, Job, MapMetrics, Plan, RemoteRecordData, RemoteRecordInspectionResponse, Route, Run, RunListItem, SMSChallenge, SystemSettings, SystemSettingsInput, TargetSelection } from './types'
+import type { Account, AccountInput, AccountLoginResult, AccountResources, Area, Config, Execution, FaceDetectionResult, FaceProfile, Job, ManualRoute, MapMetrics, Plan, RemoteRecordData, RemoteRecordInspectionResponse, Route, Run, RunListItem, SMSChallenge, SystemSettings, SystemSettingsInput, TargetSelection } from './types'
 
 async function request<T>(url: string, options: RequestInit = {}): Promise<T> {
   const response = await fetch(url, { ...options, headers: { 'Content-Type': 'application/json', ...(options.headers || {}) } })
@@ -48,6 +48,9 @@ export const api = {
   accountRecords: (id: string, page = 1, pageSize = 20) => request<RemoteRecordData>(`/api/v1/accounts/${id}/records?page=${page}&page_size=${pageSize}`),
   accountRecord: (id: string, recordID: string, semesterCode = '') => request<RemoteRecordData>(`/api/v1/accounts/${id}/records/${encodeURIComponent(recordID)}${semesterCode ? `?semester_code=${encodeURIComponent(semesterCode)}` : ''}`),
   accountRecordInspection: (id: string, recordID: string, semesterCode = '') => request<RemoteRecordInspectionResponse>(`/api/v1/accounts/${id}/records/${encodeURIComponent(recordID)}/inspection${semesterCode ? `?semester_code=${encodeURIComponent(semesterCode)}` : ''}`),
+  manualRoutes: () => list<ManualRoute>('/api/v1/manual-routes'),
+  saveManualRoute: (m:Partial<ManualRoute>)=>request<ManualRoute>(m.id?`/api/v1/manual-routes/${m.id}`:'/api/v1/manual-routes',{method:m.id?'PUT':'POST',body:JSON.stringify(m)}),
+  deleteManualRoute: (id:string)=>request<void>(`/api/v1/manual-routes/${id}`,{method:'DELETE'}),
   jobs: () => list<Job>('/api/v1/jobs'),
   createJob: (value: Partial<Job>) => request<Job>('/api/v1/jobs', {method:'POST', body:JSON.stringify(value)}),
   updateJob: (value: Job) => request<Job>(`/api/v1/jobs/${value.id}`, {method:'PUT', body:JSON.stringify(value)}),

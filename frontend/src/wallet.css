@@ -1,0 +1,58 @@
+/* Equal-weight payment entry cards; QR and ongoing checks belong to the dialog. */
+.payment-method-grid {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:stretch;gap:20px}
+.payment-method-grid.single {grid-template-columns:minmax(0,1fr);max-width:720px;width:100%}
+.payment-method-card {display:flex;flex-direction:column;gap:24px;min-width:0;padding:26px}
+.payment-method-head {display:flex;align-items:center;gap:14px}
+.payment-method-icon {display:grid;place-items:center;width:46px;height:46px;flex:none;border:1px solid var(--line);border-radius:14px;background:var(--accent-soft);color:var(--accent)}
+.payment-method-icon svg {width:22px;height:22px;stroke-width:1.7}
+.payment-method-icon.code {background:#f3f0fa;color:var(--violet)}
+.payment-method-head h2 {font-size:18px;margin:0 0 5px;color:var(--ink)}
+.payment-method-head p {font-size:13px;line-height:1.6;color:var(--muted);margin:0}
+.payment-method-content {flex:1;display:flex;flex-direction:column;gap:17px}
+.payment-method-content .field {margin:0}
+.payment-method-description {display:grid;gap:8px;padding:17px 18px;background:rgba(241,244,252,.65);border:1px solid var(--line);border-radius:12px}
+.payment-method-description strong {font-size:15px;font-weight:600;color:var(--ink)}
+.payment-method-description p {font-size:14px;line-height:1.75;color:var(--muted);margin:0}
+.payment-method-content>.button {width:100%;min-height:44px;margin-top:auto}
+.payment-method-footer {display:flex;align-items:center;gap:8px;min-height:22px;font-size:13px;color:var(--muted);line-height:1.6}
+.payment-method-footer svg {width:15px;height:15px;flex:none}
+.payment-method-footer a {display:inline-flex;align-items:center;gap:4px;color:var(--accent);text-decoration:none}
+.payment-method-footer a:hover {text-decoration:underline}
+.payment-method-footer .status-pill {font-size:12px}
+.deposit-payment-modal.app-modal {width:min(760px,100%)}
+.deposit-payment-modal .modal-body {display:grid;gap:20px}
+.deposit-network-line {display:flex;align-items:center;justify-content:space-between;gap:12px;color:var(--muted);font-size:13px}
+.deposit-payment-layout {display:grid;grid-template-columns:250px minmax(0,1fr);gap:26px;align-items:center;min-width:0}
+.deposit-payment-code {padding:12px 6px;border:1px solid var(--line);border-radius:16px;background:#fff}
+.deposit-payment-details {display:grid;gap:14px;min-width:0}
+.deposit-payment-details .portal-address {padding:14px;font-size:15px;line-height:1.8;letter-spacing:.2px}
+.deposit-payment-details .button {min-height:42px}
+.deposit-network-note {display:flex;align-items:flex-start;gap:8px;font-size:13px;line-height:1.8;color:var(--muted);margin:0}
+.deposit-network-note svg {flex:none;margin-top:3px;color:var(--accent)}
+.deposit-payment-modal .deposit-scan-panel {gap:12px;padding:18px;background:rgba(244,247,252,.7)}
+.deposit-scan-heading {display:flex;align-items:center;gap:12px}
+.deposit-scan-heading>div {display:grid;gap:2px;min-width:0}
+.deposit-scan-heading>div>span {font-size:13px;line-height:1.7;color:var(--muted);font-variant-numeric:tabular-nums}
+.deposit-scan-indicator {display:grid;place-items:center;flex:none;width:38px;height:38px;border-radius:11px;background:var(--success-soft);color:var(--success)}
+.deposit-scan-indicator.checking {background:var(--accent-soft);color:var(--accent)}
+.deposit-scan-indicator svg {width:18px;height:18px}
+.deposit-scan-panel .deposit-keep-open {display:flex;align-items:flex-start;gap:8px;margin:0;padding:10px 12px;border:1px solid #eadcc0;border-radius:9px;background:#fcf6e9;color:var(--amber);font-size:14px}
+.deposit-keep-open svg {flex:none;margin-top:4px}
+.deposit-scan-panel .deposit-scan-result {margin:0;line-height:1.7}
+.wallet-ledger-empty {min-height:240px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:30px 20px;text-align:center;border:1px solid var(--line);border-radius:14px;background:linear-gradient(150deg,rgba(242,245,252,.65),rgba(255,255,255,.5))}
+.wallet-ledger-empty-icon {width:58px;height:58px;display:grid;place-items:center;border:1px solid #e0e6f1;border-radius:18px;background:#fff;box-shadow:0 5px 15px rgba(35,45,64,.035);color:#8796b2;margin-bottom:3px}
+.wallet-ledger-empty-icon svg {width:26px;height:26px;stroke-width:1.5}
+.wallet-ledger-empty h3 {font-size:16px;font-weight:600;color:var(--ink);margin:0}
+.wallet-ledger-empty p {font-size:14px;line-height:1.8;color:var(--muted);margin:0;max-width:320px}
+.wallet-ledger-empty .button {margin-top:4px}
+@media(max-width:760px){
+  .payment-method-grid {grid-template-columns:minmax(0,1fr);gap:16px}
+  .payment-method-card {padding:20px;gap:20px}
+}
+@media(max-width:560px){
+  .deposit-payment-layout {grid-template-columns:minmax(0,1fr);gap:18px}
+  .deposit-payment-code {width:250px;max-width:100%;justify-self:center}
+  .deposit-payment-modal .modal-body {gap:16px}
+  .deposit-payment-modal .deposit-scan-panel {padding:14px}
+  .wallet-ledger-empty {min-height:220px;padding:25px 16px}
+}

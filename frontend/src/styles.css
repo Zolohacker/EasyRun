@@ -45,19 +45,6 @@
 .map-empty-on-map{z-index:850;inset:50% auto auto 50%;width:min(390px,calc(100% - 80px));padding:14px 18px;transform:translate(-50%,-50%);border:1px solid rgba(255,255,255,.36);border-radius:12px;background:rgba(255,255,255,0.84);box-shadow:0 18px 50px rgba(248,249,252,0.25);color:#647084;pointer-events:none;backdrop-filter:blur(10px)}
 .map-empty-on-map strong{color:#232d40;font-size:12px}
 .map-empty-on-map span{text-align:center;color:#647084;font-size:12px}
-.route-map-marker{border:0;background:transparent}
-.route-map-marker span{width:32px;height:32px;border:3px solid #fff;border-radius:50% 50% 50% 8px;display:grid;place-items:center;transform:rotate(-45deg);box-shadow:0 8px 20px rgba(248,249,252,0.33);color:#fff;font-size:13px;font-weight:900}
-.route-map-marker span::first-letter{transform:rotate(45deg)}
-.route-map-marker.start span{background:#4f60ca}
-.route-map-marker.finish span{background:#3d73aa}
-.route-map-marker span{line-height:1;text-indent:0}
-.route-map-marker span::after{content:attr(data-label)}
-.route-map-marker span{transform:rotate(-45deg)}
-.route-map-marker span{writing-mode:horizontal-tb}
-.route-map-marker span{font-size:0}
-.route-map-marker.start span::before{content:"起"}
-.route-map-marker.finish span::before{content:"终"}
-.route-map-marker span::before{font-size:13px;transform:rotate(45deg)}
 @media(max-width:560px){.amap-toolbar{left:49px}.amap-toolbar button span{display:none}.amap-toolbar button{width:34px;padding:0;justify-content:center}.map-legend{display:none}.map-provider{bottom:9px}.amap-viewport .map-coordinates{bottom:9px}}
 
 /* Server-bounded 100 m distance selector */

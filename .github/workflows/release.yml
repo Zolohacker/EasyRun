@@ -106,6 +106,23 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - name: Read versioned release notes
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          python3 - <<'PY'
+          import os, pathlib, re
+          tag = os.environ['RELEASE_TAG']
+          text = pathlib.Path('CHANGELOG.md').read_text(encoding='utf-8')
+          section = re.search(r'(?ms)^## ' + re.escape(tag) + r'(?:[ \t][^\n]*)?\n(.*?)(?=^## |\Z)', text)
+          if not section or not section.group(1).strip():
+              raise SystemExit('Missing changelog section for ' + tag)
+          pathlib.Path('release-notes.md').write_text(section.group(1).strip() + '\n', encoding='utf-8')
+          PY
       - uses: actions/download-artifact@v8.0.2
         with:
           pattern: release-*
@@ -125,5 +142,5 @@ jobs:
           # platforms and checksums are complete, so clients cannot see a
           # half-populated stable release.
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then echo 'Release already exists'; exit 1; fi
-          gh release create "$RELEASE_TAG" --verify-tag --draft --title "EasyRun $RELEASE_TAG" --generate-notes ./*
+          gh release create "$RELEASE_TAG" --verify-tag --draft --title "EasyRun $RELEASE_TAG" --notes-file ../release-notes.md ./*
           gh release edit "$RELEASE_TAG" --draft=false --latest

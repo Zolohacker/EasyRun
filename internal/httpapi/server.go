@@ -90,6 +90,10 @@ func New(dependencies Dependencies) http.Handler {
 	mux.HandleFunc("GET /api/v1/system/settings", a.getSystemSettings)
 	mux.HandleFunc("PUT /api/v1/system/settings", a.updateSystemSettings)
 	mux.HandleFunc("GET /api/v1/map/metrics", a.mapMetrics)
+	mux.HandleFunc("GET /api/v1/manual-routes", a.listManualRoutes)
+	mux.HandleFunc("POST /api/v1/manual-routes", a.saveManualRoute)
+	mux.HandleFunc("PUT /api/v1/manual-routes/{id}", a.saveManualRoute)
+	mux.HandleFunc("DELETE /api/v1/manual-routes/{id}", a.deleteManualRoute)
 	mux.HandleFunc("POST /api/v1/routes/plan", a.planRoute)
 	mux.HandleFunc("POST /api/v1/runs/simulate", a.simulateRun)
 	mux.HandleFunc("GET /api/v1/runs", a.listRuns)
@@ -141,7 +145,7 @@ func New(dependencies Dependencies) http.Handler {
 	}
 	files := http.FileServer(http.FS(content))
 	mux.Handle("GET /", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/admin" || r.URL.Path == "/app" || r.URL.Path == "/login" || strings.HasPrefix(r.URL.Path, "/face-upload/") {
+		if r.URL.Path == "/admin" || r.URL.Path == "/app" || r.URL.Path == "/login" || strings.HasPrefix(r.URL.Path, "/face-upload/") || strings.HasPrefix(r.URL.Path, "/task-config/") {
 			raw, err := fs.ReadFile(content, "index.html")
 			if err != nil {
 				http.Error(w, "application unavailable", 503)

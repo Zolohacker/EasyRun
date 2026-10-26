@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef } from 'react'
 import L, { type LatLngBounds, type LayerGroup, type Map as LeafletMap } from 'leaflet'
 import { LocateFixed, ScanLine } from 'lucide-react'
 import type { Area, Route, Sample } from './types'
+import {routeMarkerIcon} from './routeMarkers'
+import './route-markers.css'
 
 const DEFAULT_CENTER: L.LatLngExpression = [39.905, 116.397]
 const TILE_OPTIONS: L.TileLayerOptions = {
@@ -109,10 +111,10 @@ export default function AmapRouteViewport({ route, samples, area, variant = 'pla
       }).bindTooltip(`${variant === 'record' ? '实际轨迹' : '规划路线'} · ${(route!.distance_m / 1000).toFixed(2)} km`, {sticky: true}).addTo(dataLayer)
       bounds.extend(L.latLngBounds(planned))
 
-      L.marker(planned[0], {icon: routeIcon('起', 'start'), zIndexOffset: 800})
+      L.marker(planned[0], {icon: routeIcon('start'), zIndexOffset: 800})
         .bindTooltip('路线起点', {direction: 'top', offset: [0, -14]})
         .addTo(dataLayer)
-      L.marker(planned[planned.length - 1], {icon: routeIcon('终', 'finish'), zIndexOffset: 790})
+      L.marker(planned[planned.length - 1], {icon: routeIcon('finish'), zIndexOffset: 790})
         .bindTooltip('路线终点', {direction: 'top', offset: [0, -14]})
         .addTo(dataLayer)
     }
@@ -163,11 +165,6 @@ export default function AmapRouteViewport({ route, samples, area, variant = 'pla
   </div>
 }
 
-function routeIcon(label: string, kind: 'start' | 'finish') {
-  return L.divIcon({
-    className: `route-map-marker ${kind}`,
-    html: `<span>${label}</span>`,
-    iconSize: [32, 32],
-    iconAnchor: [16, 16],
-  })
+function routeIcon(kind: 'start' | 'finish') {
+  return L.divIcon(routeMarkerIcon(kind))
 }

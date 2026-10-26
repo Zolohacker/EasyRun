@@ -107,16 +107,17 @@ type GenerateRequest struct {
 // later, after startSunRun_v2 has returned the session's clock mode and target
 // points.
 type SubmissionRequest struct {
-	TargetDistanceM      float64 `json:"target_distance_m"`
-	Profile              Profile `json:"profile"`
-	Seed                 int64   `json:"seed"`
-	AccountID            string  `json:"account_id,omitempty"`
-	AutomationJobID      string  `json:"automation_job_id,omitempty"`
-	DailyRunLimit        int     `json:"daily_run_limit,omitempty"`
-	WeeklyRunLimit       int     `json:"weekly_run_limit,omitempty"`
-	DailyDistanceLimitM  float64 `json:"daily_distance_limit_m,omitempty"`
-	WeeklyDistanceLimitM float64 `json:"weekly_distance_limit_m,omitempty"`
-	Timezone             string  `json:"timezone,omitempty"`
+	ManualRoute          *route.Route `json:"-"`
+	TargetDistanceM      float64      `json:"target_distance_m"`
+	Profile              Profile      `json:"profile"`
+	Seed                 int64        `json:"seed"`
+	AccountID            string       `json:"account_id,omitempty"`
+	AutomationJobID      string       `json:"automation_job_id,omitempty"`
+	DailyRunLimit        int          `json:"daily_run_limit,omitempty"`
+	WeeklyRunLimit       int          `json:"weekly_run_limit,omitempty"`
+	DailyDistanceLimitM  float64      `json:"daily_distance_limit_m,omitempty"`
+	WeeklyDistanceLimitM float64      `json:"weekly_distance_limit_m,omitempty"`
+	Timezone             string       `json:"timezone,omitempty"`
 }
 
 type Sample struct {

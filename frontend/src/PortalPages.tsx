@@ -1,11 +1,12 @@
-import SearchSelect from './SearchSelect'
-import DepositQRCode from './DepositQRCode'
-import DepositScanPanel from './DepositScanPanel'
+import {accountSelectorLabel} from './accountLabels'
+import Modal from './Modal'
+import TaskPrepayPanel from './TaskPrepayPanel'
+import DepositPaymentModal from './DepositPaymentModal'
+import './wallet.css'
 import {ListViewport,usePagination} from './Pagination'
 import {useCallback,useEffect,useState,type FormEvent,type ReactNode} from 'react'
 import BrandMark from './BrandMark'
-import {ArrowUpRight,Check,Copy,CreditCard,ImagePlus,ShieldCheck,Wallet,CalendarCheck} from 'lucide-react'
-import {api} from './api'
+import {ArrowUpRight,Check,CreditCard,ImagePlus,ShieldCheck,Wallet,CalendarCheck,QrCode,ReceiptText} from 'lucide-react'
 import {externalHTTPURL,money,portalRequest,type BillingSummary} from './portal'
 import type {Account,Job,Plan} from './types'
 
@@ -21,6 +22,16 @@ export function WalletPage({accounts,plans,jobs,notify}:{accounts:Account[];plan
   const ledgerPages=usePagination(data?.ledger||[])
   const packagePages=usePagination(plans.filter(plan=>accounts.some(account=>account.id===plan.source_account_id)))
   const [tab,setTab]=useState<'topup'|'billing'|'packages'|'ledger'>('topup')
+  const [depositOpen,setDepositOpen]=useState(false)
+  const openDeposit=async()=>{
+    if(busy||!data?.wallet_enabled)return
+    setBusy(true)
+    try{
+      if(!data.deposit_address){const value=await portalRequest<{address:string}>('wallet/address',{});if(!value.address)throw new Error('收款地址尚未生成，请稍后重试');setData(current=>current?{...current,deposit_address:value.address}:current)}
+      setDepositOpen(true)
+    }catch(e){notify((e as Error).message)}finally{setBusy(false)}
+  }
+  const [creditJob,setCreditJob]=useState<Job|null>(null)
   if(!data)return <div className="panel portal-section">正在读取钱包…</div>
   const shopURL=externalHTTPURL(data.pricing.recharge_code_shop_url)
   const methods=Number(data.wallet_enabled)+Number(data.pricing.recharge_code_enabled)
@@ -28,25 +39,23 @@ export function WalletPage({accounts,plans,jobs,notify}:{accounts:Account[];plan
     <div className="portal-balance-card"><div><h2>{money(data.user.balance_micro)} <small>USDT</small></h2><p>账户余额 · 支出与充值逐笔记录</p></div><Wallet/></div>
     <div className="portal-page-tabs" role="tablist" aria-label="余额与计费分类">{([['topup','充值'],['billing','任务计费'],['packages','计划套餐'],['ledger','余额流水']] as const).map(([key,label])=><button type="button" role="tab" aria-selected={tab===key} key={key} className={tab===key?'active':''} onClick={()=>setTab(key)}>{label}</button>)}</div>
     {tab==='topup'&&methods===0&&<div className="portal-notice">当前未开放自助充值，请联系管理员。</div>}
-    {tab==='topup'&&methods>0&&<div className={methods===1?'portal-two-columns single':'portal-two-columns'}>
-      {data.wallet_enabled&&<Panel title="USDT · TRC20 充值">
-        <span className={`status-pill ${data.network==='mainnet'?'ok':'warn'}`}>{data.network==='mainnet'?'TRON 主网':`${data.network} 测试网 · 不可转入真实资金`}</span>
-        {data.deposit_address?<>
-          <DepositQRCode address={data.deposit_address}/>
-          <div className="deposit-address"><span>本账号专属收款地址</span><code className="portal-address" tabIndex={0}>{data.deposit_address}</code></div>
-          <button className="button subtle" onClick={()=>{
-            if(!navigator.clipboard){notify('请长按收款地址进行复制');return}
-            void navigator.clipboard.writeText(data.deposit_address).then(()=>notify('地址已复制')).catch(()=>notify('复制失败，请长按收款地址手动复制'))
-          }}><Copy/>复制收款地址</button>
-          <DepositScanPanel onRefresh={load}/>
-        </>:<div className="deposit-pending"><Wallet/><p>生成收款地址后显示充值二维码。</p><button className="button primary" disabled={busy} onClick={()=>void act(()=>portalRequest('wallet/address',{}),'专属地址已分配')}>{busy?'正在生成…':'生成专属收款二维码'}</button></div>}
-        <p className="portal-hint">只接收所选网络的 USDT（TRC20）。转账固化后点击「检查充值」，核实成功即入账；请勿使用其他网络充值。</p>
-      </Panel>}
-      {data.pricing.recharge_code_enabled&&<Panel title="充值码兑换"><form className="form-stack" onSubmit={e=>{e.preventDefault();void act(async()=>{await portalRequest('redeem',{code});setCode('')},'充值码兑换成功')}}><Field label="充值码"><input required value={code} onChange={e=>setCode(e.target.value)} placeholder="ER-…" autoComplete="off"/></Field><button className="button primary" disabled={busy}><CreditCard/>兑换到余额</button></form>{shopURL&&<div className="portal-shop-callout"><div><strong>还没有充值码？</strong><p>前往发卡网购买，完成后返回此处兑换。</p></div><a className="button subtle" href={shopURL} target="_blank" rel="noopener noreferrer">购买充值码<ArrowUpRight/></a></div>}</Panel>}
+    {tab==='topup'&&methods>0&&<div className={`payment-method-grid ${methods===1?'single':''}`}>
+      {data.wallet_enabled&&<section className="panel payment-method-card">
+        <header className="payment-method-head"><span className="payment-method-icon"><QrCode/></span><div><h2>USDT 充值</h2><p>专属地址 · 链上确认到账</p></div></header>
+        <div className="payment-method-content"><div className="payment-method-description"><strong>扫码或复制地址转账</strong><p>打开收款窗口后自动检查充值，到账后同步更新余额。</p></div><button type="button" className="button primary" disabled={busy} onClick={()=>void openDeposit()}><QrCode size={17}/>{busy?'正在准备…':'打开收款窗口'}</button></div>
+        <footer className="payment-method-footer"><span className={`status-pill ${data.network==='mainnet'?'ok':'warn'}`}>{data.network==='mainnet'?'TRON 主网':`${data.network} 测试网 · 请勿转入真实资金`}</span><span>TRC20</span></footer>
+      </section>}
+      {data.pricing.recharge_code_enabled&&<section className="panel payment-method-card">
+        <header className="payment-method-head"><span className="payment-method-icon code"><CreditCard/></span><div><h2>充值码兑换</h2><p>输入充值码 · 余额即时可用</p></div></header>
+        <form className="payment-method-content" onSubmit={e=>{e.preventDefault();void act(async()=>{await portalRequest('redeem',{code});setCode('')},'充值码兑换成功')}}><Field label="充值码"><input required value={code} onChange={e=>setCode(e.target.value)} placeholder="输入 ER- 开头的充值码" autoComplete="off"/></Field><button className="button primary" disabled={busy||!code.trim()}><CreditCard size={17}/>兑换到余额</button></form>
+        <footer className="payment-method-footer">{shopURL?<><span>还没有充值码？</span><a href={shopURL} target="_blank" rel="noopener noreferrer">前往购买<ArrowUpRight/></a></>:<><ShieldCheck/><span>每张充值码仅可兑换一次</span></>}</footer>
+      </section>}
     </div>}
-    {tab==='billing'&&<Panel title="任务计费方式"><div className="portal-rate-cards"><div><CalendarCheck/><span>按次</span><b>{money(data.pricing.per_run_micro)} <small>USDT / 次</small></b></div><div><ArrowUpRight/><span>按公里</span><b>{money(data.pricing.per_km_micro)} <small>USDT / km</small></b></div><div><ShieldCheck/><span>完整跑步计划</span><b>{money(data.pricing.plan_package_micro)} <small>USDT / 账号计划</small></b></div></div>{!data.pricing.enabled&&<p className="portal-hint">当前未启用计费，任务不扣余额。</p>}{jobs.length>0?<div className="portal-job-modes">{jobs.map(j=><div key={j.id}><div><strong>{accounts.find(a=>a.id===j.account_id)?.name||'账号'}</strong><span>{plans.find(p=>p.id===j.plan_id)?.name}</span></div><SearchSelect disabled={busy} value={data.job_modes[j.id]||'per_run'} aria-label="任务计费方式" onChange={e=>void act(()=>portalRequest(`jobs/${j.id}/billing`,{mode:e.target.value},'PUT'),'计费方式已更新')}><option value="per_run">按次计费</option><option value="per_km">按公里计费</option><option value="plan_package">使用完整计划套餐</option></SearchSelect></div>)}</div>:<p className="portal-hint">暂无自动任务。创建任务后，可在这里选择各任务的计费方式。</p>}<p className="portal-hint">按公里以目标距离计算，精确到 0.000001 USDT。任务执行前预扣，提交失败 / 跳过退款。已购套餐优先于单次计费。</p></Panel>}
+    {depositOpen&&data.wallet_enabled&&data.deposit_address&&<DepositPaymentModal address={data.deposit_address} network={data.network} onClose={()=>setDepositOpen(false)} onRefresh={load} notify={notify}/>}
+    {tab==='billing'&&<Panel title="任务下单额度"><div className="portal-rate-cards"><div><CalendarCheck/><span>按次</span><b>{money(data.pricing.per_run_micro)} <small>USDT / 次</small></b></div><div><ArrowUpRight/><span>按公里</span><b>{money(data.pricing.per_km_micro)} <small>USDT / km</small></b></div><div><ShieldCheck/><span>完整跑步计划</span><b>{money(data.pricing.plan_package_micro)} <small>USDT / 账号计划</small></b></div></div>{!data.pricing.enabled&&<p className="portal-hint">当前暂停新预扣；已有订单仍可查看和退回未执行额度。</p>}{jobs.length>0?<div className="portal-job-modes">{jobs.map(j=><div key={j.id}><div><strong>{accounts.find(a=>a.id===j.account_id)?accountSelectorLabel(accounts.find(a=>a.id===j.account_id)!):'账号已移除'}</strong><span>{plans.find(p=>p.id===j.plan_id)?.name}</span></div><button className="button subtle" onClick={()=>setCreditJob(j)}>查看 / 调整额度</button></div>)}</div>:<p className="portal-hint">在自动任务中新建任务并下单。</p>}<p className="portal-hint">下单预扣，成功后结算。可调整次数或公里总量；执行中与已结算部分不退，失败后额度恢复为可用。已购完整套餐优先使用。</p></Panel>}
+    {creditJob&&<Modal title="调整下单额度" onClose={()=>{setCreditJob(null);void load()}}><TaskPrepayPanel jobID={creditJob.id} notify={notify}/></Modal>}
     {tab==='packages'&&<Panel title="购买完整跑步计划"><ListViewport pagination={packagePages} className="compact-list"><div className="portal-package-list">{packagePages.items.map(p=>{const a=accounts.find(a=>a.id===p.source_account_id);if(!a)return null;const owned=data.entitlements.some(e=>e.account_id===a.id&&e.plan_id===p.id);return <div key={p.id}><div><strong>{a.name} · {p.name}</strong><span>仅限当前账号与计划使用</span></div><button className="button subtle" disabled={busy||owned||!data.pricing.enabled} onClick={()=>void act(()=>portalRequest('packages',{account_id:a.id,plan_id:p.id}),'完整计划套餐已购买')}>{owned?<><Check/>已购买</>:`购买 · ${money(data.pricing.plan_package_micro)} USDT`}</button></div>})}</div></ListViewport></Panel>}
-    {tab==='ledger'&&<Panel title="余额流水"><ListViewport pagination={ledgerPages} className="table-scroll"><table className="mobile-card-table" aria-label="余额流水"><thead><tr><th>时间</th><th>类型</th><th>变动 USDT</th><th>流水参考</th></tr></thead><tbody>{ledgerPages.items.map(l=><tr key={l.id}><td data-label="时间" className="mobile-wide-cell">{date(l.created_at)}</td><td data-label="类型">{({code_redeem:'充值码兑换',trc20_deposit:'链上充值',run_reserve:'任务预扣',run_refund:'任务退款',plan_package:'完整计划套餐'} as Record<string,string>)[l.kind]||l.kind}</td><td data-label="变动 USDT" className={l.delta_micro>=0?'credit':'debit'}>{l.delta_micro>=0?'+':''}{money(l.delta_micro)}</td><td data-label="流水参考" className="mobile-wide-cell"><code className="portal-break">{l.reference}</code></td></tr>)}</tbody></table>{!data.ledger.length&&<p className="portal-hint">暂无流水</p>}</ListViewport></Panel>}
+    {tab==='ledger'&&<Panel title="余额流水">{data.ledger.length>0?<ListViewport pagination={ledgerPages} className="table-scroll"><table className="mobile-card-table" aria-label="余额流水"><thead><tr><th>时间</th><th>类型</th><th>变动 USDT</th><th>流水参考</th></tr></thead><tbody>{ledgerPages.items.map(l=><tr key={l.id}><td data-label="时间" className="mobile-wide-cell">{date(l.created_at)}</td><td data-label="类型">{({code_redeem:'充值码兑换',trc20_deposit:'链上充值',task_prepay:'下单预扣',task_release:'退回未执行预扣',task_settle:'成功结算',run_reserve:'任务预扣',run_refund:'任务退款',plan_package:'完整计划套餐'} as Record<string,string>)[l.kind]||l.kind}</td><td data-label="变动 USDT" className={l.delta_micro>=0?'credit':'debit'}>{l.delta_micro>=0?'+':''}{money(l.delta_micro)}{l.kind==='task_settle'&&<small className="ledger-settlement">结算 {money(l.funding_amount_micro||0)} USDT · 不再扣余额</small>}</td><td data-label="流水参考" className="mobile-wide-cell"><code className="portal-break">{l.reference}</code></td></tr>)}</tbody></table></ListViewport>:<div className="wallet-ledger-empty"><span className="wallet-ledger-empty-icon"><ReceiptText/></span><h3>还没有收支记录</h3><p>充值、下单和退款记录会显示在这里。</p>{methods>0&&<button type="button" className="button subtle" onClick={()=>setTab('topup')}>去充值<ArrowUpRight size={15}/></button>}</div>}</Panel>}
   </div>
 }
 

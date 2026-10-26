@@ -16,6 +16,11 @@ import (
 var ErrNotFound = errors.New("resource not found")
 
 type Store interface {
+	CreateManualRoute(context.Context, platform.ManualRoute) (platform.ManualRoute, error)
+	ListManualRoutes(context.Context) ([]platform.ManualRoute, error)
+	GetManualRoute(context.Context, string) (platform.ManualRoute, error)
+	UpdateManualRoute(context.Context, platform.ManualRoute) (platform.ManualRoute, error)
+	DeleteManualRoute(context.Context, string) error
 	Save(context.Context, activity.Run) error
 	Get(context.Context, string) (activity.Run, error)
 	List(context.Context, int) ([]activity.ListItem, error)
@@ -188,6 +193,22 @@ CREATE TABLE IF NOT EXISTS automation_jobs (
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now()
 );
+CREATE TABLE IF NOT EXISTS manual_routes (
+ id text PRIMARY KEY,
+ account_id text NOT NULL REFERENCES runner_accounts(id) ON DELETE CASCADE,
+ plan_id text NOT NULL REFERENCES running_plans(id) ON DELETE CASCADE,
+ area_id text NOT NULL REFERENCES running_areas(id) ON DELETE CASCADE,
+ name text NOT NULL,
+ points jsonb NOT NULL,
+ distance_m double precision NOT NULL CHECK(distance_m > 0 AND distance_m <= 100000),
+ created_at timestamptz NOT NULL DEFAULT now(),
+ updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS manual_routes_account_idx ON manual_routes(account_id,created_at DESC);
+ALTER TABLE manual_routes ADD COLUMN IF NOT EXISTS created_by_user_id text NOT NULL DEFAULT '';
+ALTER TABLE manual_routes ADD COLUMN IF NOT EXISTS source_job_id text NOT NULL DEFAULT '';
+ALTER TABLE automation_jobs ADD COLUMN IF NOT EXISTS route_mode text NOT NULL DEFAULT 'auto' CHECK(route_mode IN ('auto','custom'));
+ALTER TABLE automation_jobs ADD COLUMN IF NOT EXISTS manual_route_id text REFERENCES manual_routes(id) ON DELETE RESTRICT;
 CREATE TABLE IF NOT EXISTS running_activities (
     id text PRIMARY KEY,
     schema_version integer NOT NULL,
@@ -316,7 +337,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS automation_one_running_per_job_idx ON automati
 	if _, err := s.pool.Exec(ctx, schema); err != nil {
 		return fmt.Errorf("migrate PostgreSQL schema: %w", err)
 	}
-	if _, err := s.pool.Exec(ctx, `ALTER TABLE runner_accounts ADD COLUMN IF NOT EXISTS owner_user_id text NOT NULL DEFAULT ''; CREATE INDEX IF NOT EXISTS runner_accounts_owner_idx ON runner_accounts(owner_user_id);`); err != nil {
+	if _, err := s.pool.Exec(ctx, `ALTER TABLE runner_accounts ADD COLUMN IF NOT EXISTS owner_user_id text NOT NULL DEFAULT ''; CREATE INDEX IF NOT EXISTS runner_accounts_owner_idx ON runner_accounts(owner_user_id); UPDATE manual_routes m SET created_by_user_id=a.owner_user_id FROM runner_accounts a WHERE m.account_id=a.id AND m.created_by_user_id='';`); err != nil {
 		return err
 	}
 	return nil

@@ -14,10 +14,36 @@ func (s *PostgresStore) CreateJob(ctx context.Context, job platform.AutomationJo
 	if job.ID == "" {
 		job.ID = platform.NewID("job")
 	}
+	if job.RouteMode == "" {
+		job.RouteMode = "auto"
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return job, err
+	}
+	defer tx.Rollback(ctx)
+	job, err = CreateJobTx(ctx, tx, job)
+	if err != nil {
+		return job, err
+	}
+	return job, tx.Commit(ctx)
+}
+
+// CreateJobTx allows checkout and task creation to commit atomically.
+func CreateJobTx(ctx context.Context, tx pgx.Tx, job platform.AutomationJob) (platform.AutomationJob, error) {
+	if job.ID == "" {
+		job.ID = platform.NewID("job")
+	}
+	if job.RouteMode == "" {
+		job.RouteMode = "auto"
+	}
+	if err := lockJobRoute(ctx, tx, &job); err != nil {
+		return job, err
+	}
 	const query = `INSERT INTO automation_jobs
-(id,account_id,plan_id,area_id,target_distance_m,daily_run_limit,weekly_run_limit,daily_distance_limit_m,weekly_distance_limit_m,schedule_mode,manual_time,day_scope,cron_expr,timezone,enabled,next_run_at,last_run_at)
-VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING created_at,updated_at`
-	if err := s.pool.QueryRow(ctx, query, job.ID, job.AccountID, job.PlanID, job.AreaID, job.TargetDistanceM, job.DailyRunLimit, job.WeeklyRunLimit, job.DailyDistanceLimitM, job.WeeklyDistanceLimitM, job.ScheduleMode, job.ManualTime, job.DayScope, job.CronExpr, job.Timezone, job.Enabled, job.NextRunAt, job.LastRunAt).Scan(&job.CreatedAt, &job.UpdatedAt); err != nil {
+(id,account_id,plan_id,area_id,target_distance_m,daily_run_limit,weekly_run_limit,daily_distance_limit_m,weekly_distance_limit_m,schedule_mode,manual_time,day_scope,cron_expr,timezone,enabled,next_run_at,last_run_at,route_mode,manual_route_id)
+VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19) RETURNING created_at,updated_at`
+	if err := tx.QueryRow(ctx, query, job.ID, job.AccountID, job.PlanID, job.AreaID, job.TargetDistanceM, job.DailyRunLimit, job.WeeklyRunLimit, job.DailyDistanceLimitM, job.WeeklyDistanceLimitM, job.ScheduleMode, job.ManualTime, job.DayScope, job.CronExpr, job.Timezone, job.Enabled, job.NextRunAt, job.LastRunAt, job.RouteMode, nullableID(job.ManualRouteID)).Scan(&job.CreatedAt, &job.UpdatedAt); err != nil {
 		return platform.AutomationJob{}, fmt.Errorf("insert automation job: %w", err)
 	}
 	return job, nil
@@ -45,9 +71,24 @@ func (s *PostgresStore) GetJob(ctx context.Context, id string) (platform.Automat
 }
 
 func (s *PostgresStore) UpdateJob(ctx context.Context, job platform.AutomationJob) (platform.AutomationJob, error) {
-	const query = `UPDATE automation_jobs SET account_id=$2,plan_id=$3,area_id=$4,target_distance_m=$5,daily_run_limit=$6,weekly_run_limit=$7,daily_distance_limit_m=$8,weekly_distance_limit_m=$9,schedule_mode=$10,manual_time=$11,day_scope=$12,cron_expr=$13,timezone=$14,enabled=$15,next_run_at=$16,updated_at=now()
-WHERE id=$1 RETURNING last_run_at,created_at,updated_at`
-	if err := s.pool.QueryRow(ctx, query, job.ID, job.AccountID, job.PlanID, job.AreaID, job.TargetDistanceM, job.DailyRunLimit, job.WeeklyRunLimit, job.DailyDistanceLimitM, job.WeeklyDistanceLimitM, job.ScheduleMode, job.ManualTime, job.DayScope, job.CronExpr, job.Timezone, job.Enabled, job.NextRunAt).Scan(&job.LastRunAt, &job.CreatedAt, &job.UpdatedAt); errors.Is(err, pgx.ErrNoRows) {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return job, err
+	}
+	defer tx.Rollback(ctx)
+	job, err = UpdateJobTx(ctx, tx, job)
+	if err != nil {
+		return job, err
+	}
+	return job, tx.Commit(ctx)
+}
+func UpdateJobTx(ctx context.Context, tx pgx.Tx, job platform.AutomationJob) (platform.AutomationJob, error) {
+	if err := lockJobRoute(ctx, tx, &job); err != nil {
+		return job, err
+	}
+	const query = `UPDATE automation_jobs SET account_id=$2,plan_id=$3,area_id=$4,target_distance_m=$5,daily_run_limit=$6,weekly_run_limit=$7,daily_distance_limit_m=$8,weekly_distance_limit_m=$9,schedule_mode=$10,manual_time=$11,day_scope=$12,cron_expr=$13,timezone=$14,enabled=$15,next_run_at=$16,updated_at=now(),route_mode=$17,manual_route_id=$18
+WHERE id=$1 RETURNING last_run_at,created_at,updated_at,route_mode,COALESCE(manual_route_id,'')`
+	if err := tx.QueryRow(ctx, query, job.ID, job.AccountID, job.PlanID, job.AreaID, job.TargetDistanceM, job.DailyRunLimit, job.WeeklyRunLimit, job.DailyDistanceLimitM, job.WeeklyDistanceLimitM, job.ScheduleMode, job.ManualTime, job.DayScope, job.CronExpr, job.Timezone, job.Enabled, job.NextRunAt, job.RouteMode, nullableID(job.ManualRouteID)).Scan(&job.LastRunAt, &job.CreatedAt, &job.UpdatedAt, &job.RouteMode, &job.ManualRouteID); errors.Is(err, pgx.ErrNoRows) {
 		return platform.AutomationJob{}, ErrNotFound
 	} else if err != nil {
 		return platform.AutomationJob{}, fmt.Errorf("update automation job: %w", err)
@@ -192,7 +233,7 @@ func (s *PostgresStore) ListExecutionPage(ctx context.Context, q platform.Execut
 
 func scanJob(row scanner) (platform.AutomationJob, error) {
 	var job platform.AutomationJob
-	if err := row.Scan(&job.ID, &job.AccountID, &job.PlanID, &job.AreaID, &job.TargetDistanceM, &job.DailyRunLimit, &job.WeeklyRunLimit, &job.DailyDistanceLimitM, &job.WeeklyDistanceLimitM, &job.ScheduleMode, &job.ManualTime, &job.DayScope, &job.CronExpr, &job.Timezone, &job.Enabled, &job.NextRunAt, &job.LastRunAt, &job.CreatedAt, &job.UpdatedAt); errors.Is(err, pgx.ErrNoRows) {
+	if err := row.Scan(&job.ID, &job.AccountID, &job.PlanID, &job.AreaID, &job.TargetDistanceM, &job.DailyRunLimit, &job.WeeklyRunLimit, &job.DailyDistanceLimitM, &job.WeeklyDistanceLimitM, &job.ScheduleMode, &job.ManualTime, &job.DayScope, &job.CronExpr, &job.Timezone, &job.Enabled, &job.NextRunAt, &job.LastRunAt, &job.CreatedAt, &job.UpdatedAt, &job.RouteMode, &job.ManualRouteID); errors.Is(err, pgx.ErrNoRows) {
 		return platform.AutomationJob{}, ErrNotFound
 	} else if err != nil {
 		return platform.AutomationJob{}, fmt.Errorf("scan automation job: %w", err)
@@ -200,4 +241,11 @@ func scanJob(row scanner) (platform.AutomationJob, error) {
 	return job, nil
 }
 
-const jobColumns = `id,account_id,plan_id,area_id,target_distance_m,daily_run_limit,weekly_run_limit,daily_distance_limit_m,weekly_distance_limit_m,schedule_mode,manual_time,day_scope,cron_expr,timezone,enabled,next_run_at,last_run_at,created_at,updated_at`
+const jobColumns = `id,account_id,plan_id,area_id,target_distance_m,daily_run_limit,weekly_run_limit,daily_distance_limit_m,weekly_distance_limit_m,schedule_mode,manual_time,day_scope,cron_expr,timezone,enabled,next_run_at,last_run_at,created_at,updated_at,route_mode,COALESCE(manual_route_id,'')`
+
+func nullableID(id string) any {
+	if id == "" {
+		return nil
+	}
+	return id
+}

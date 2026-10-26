@@ -2,6 +2,7 @@ import {lazy,Suspense,useCallback,useEffect,useState,type FormEvent} from 'react
 import BrandMark from './BrandMark'
 import {ArrowRight,Building2,KeyRound,Mail,RefreshCw,UserRound} from 'lucide-react'
 import {PublicPortraitPage} from './PortalPages'
+import TaskConfigPage from './TaskConfigPage'
 import {portalRequest,type PortalStatus,type PortalUser} from './portal'
 import './portal.css'
 const App=lazy(()=>import('./App'))
@@ -9,8 +10,9 @@ const App=lazy(()=>import('./App'))
 export default function PortalRoot(){
   const [status,setStatus]=useState<PortalStatus|null>(null),[user,setUser]=useState<PortalUser|null>(null),[loading,setLoading]=useState(true),[error,setError]=useState('')
   const load=useCallback(async()=>{setLoading(true);setError('');try{const value=await portalRequest<PortalStatus>('status');setStatus(value);if(!value.setup_required){try{const person=await portalRequest<PortalUser>('me');setUser(person);const destination=person.role==='customer'?'/app':'/admin';if(location.pathname!==destination)history.replaceState(null,'',destination)}catch{setUser(null)}}}catch(e){setError((e as Error).message)}finally{setLoading(false)}},[])
-  useEffect(()=>{if(!location.pathname.startsWith('/face-upload/'))void load();else setLoading(false)},[load])
+  useEffect(()=>{if(!location.pathname.startsWith('/face-upload/')&&!location.pathname.startsWith('/task-config/'))void load();else setLoading(false)},[load])
   useEffect(()=>{const expired=()=>setUser(null);window.addEventListener('platform-session-expired',expired);return()=>window.removeEventListener('platform-session-expired',expired)},[])
+  if(location.pathname.startsWith('/task-config/'))return <TaskConfigPage/>
   if(location.pathname.startsWith('/face-upload/'))return <PublicPortraitPage/>
   if(loading)return <div className="portal-loading"><BrandMark/><strong>EasyRun</strong><span>正在连接…</span></div>
   if(error)return <div className="portal-loading"><strong>连接暂未完成</strong><p>{error}</p><button className="button primary" onClick={()=>void load()}>重试</button></div>

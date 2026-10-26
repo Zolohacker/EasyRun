@@ -13,7 +13,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-const depositScanCooldown = 3 * time.Minute
+const depositScanCooldown = time.Minute
 
 type depositScanState struct {
 	State             string     `json:"state"`
@@ -100,7 +100,7 @@ func (s *Service) scanNow(w http.ResponseWriter, r *http.Request) {
 		remaining := int(math.Ceil(previous.Add(depositScanCooldown).Sub(now).Seconds()))
 		if remaining > 0 {
 			w.Header().Set("Retry-After", strconv.Itoa(remaining))
-			fail(w, http.StatusTooManyRequests, fmt.Sprintf("每位用户每 3 分钟可检查一次，请在 %d 秒后重试", remaining))
+			fail(w, http.StatusTooManyRequests, fmt.Sprintf("每位用户每分钟可检查一次，请在 %d 秒后重试", remaining))
 			return
 		}
 		if state == "queued" || state == "running" {
@@ -153,9 +153,9 @@ func (s *Service) processDepositScans(ctx context.Context, wallet WalletConfig) 
 			if ctx.Err() != nil {
 				return ctx.Err() // Retain this explicit request for recovery on restart.
 			}
-			state, message := "succeeded", "检查完成，暂未发现新的已固化 USDT 充值；刚转账请等待固化后再次检查"
+			state, message := "succeeded", "暂未发现新的已确认充值，转账确认后会在后续检查中入账"
 			if scanErr != nil {
-				state, message = "failed", "检查暂未完成，请在冷却结束后重新检查；已核实的充值仍会正常入账"
+				state, message = "failed", "本次检查暂未完成，保持窗口打开将自动重试；已核实的充值仍会正常入账"
 				slog.Warn("requested deposit check failed", "user_id", userID, "error", scanErr)
 			}
 			var amount int64

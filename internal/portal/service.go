@@ -56,6 +56,9 @@ func New(ctx context.Context, db *pgxpool.Pool, vault *securestore.Vault, databa
 	if _, e := db.Exec(ctx, schema); e != nil {
 		return nil, fmt.Errorf("migrate portal: %w", e)
 	}
+	if _, e := db.Exec(ctx, escrowSchema); e != nil {
+		return nil, fmt.Errorf("migrate task escrow: %w", e)
+	}
 	data, _ := json.Marshal(Defaults())
 	_, err := db.Exec(ctx, `INSERT INTO portal_settings(id,config) VALUES(1,$1) ON CONFLICT DO NOTHING`, data)
 	return s, err
@@ -190,7 +193,7 @@ func (s *Service) dbError(w http.ResponseWriter, e error) {
 	fail(w, 500, "操作暂未完成，请稍后重试")
 }
 func publicPath(path string) bool {
-	return path == "/api/v1/portal/status" || path == "/api/v1/portal/setup" || path == "/api/v1/portal/auth/login" || path == "/api/v1/portal/auth/register" || path == "/api/v1/portal/auth/email-code" || strings.HasPrefix(path, "/api/v1/public/face/")
+	return path == "/api/v1/portal/status" || path == "/api/v1/portal/setup" || path == "/api/v1/portal/auth/login" || path == "/api/v1/portal/auth/register" || path == "/api/v1/portal/auth/email-code" || strings.HasPrefix(path, "/api/v1/public/face/") || strings.HasPrefix(path, "/api/v1/public/tasks/")
 }
 
 const schema = `
@@ -206,7 +209,16 @@ CREATE TABLE IF NOT EXISTS portal_recharge_codes(code_hash text PRIMARY KEY,labe
 CREATE TABLE IF NOT EXISTS portal_entitlements(user_id text NOT NULL REFERENCES portal_users(id),account_id text NOT NULL REFERENCES runner_accounts(id) ON DELETE CASCADE,plan_id text NOT NULL REFERENCES running_plans(id) ON DELETE CASCADE,created_at timestamptz NOT NULL DEFAULT now(),PRIMARY KEY(account_id,plan_id));
 CREATE TABLE IF NOT EXISTS portal_job_billing(job_id text PRIMARY KEY REFERENCES automation_jobs(id) ON DELETE CASCADE,mode text NOT NULL CHECK(mode IN('per_run','per_km','plan_package')));
 CREATE TABLE IF NOT EXISTS portal_charges(execution_id text PRIMARY KEY REFERENCES automation_executions(id),user_id text NOT NULL REFERENCES portal_users(id),amount_micro bigint NOT NULL,state text NOT NULL CHECK(state IN('reserved','settled','refunded')),created_at timestamptz NOT NULL DEFAULT now());
+CREATE UNIQUE INDEX IF NOT EXISTS automation_jobs_credit_identity ON automation_jobs(id,account_id,plan_id);
+CREATE TABLE IF NOT EXISTS portal_task_credits(job_id text PRIMARY KEY,user_id text NOT NULL REFERENCES portal_users(id),account_id text NOT NULL,plan_id text NOT NULL,mode text NOT NULL CHECK(mode IN('per_run','per_km')),remaining_units bigint NOT NULL CHECK(remaining_units>=0),updated_at timestamptz NOT NULL DEFAULT now(),FOREIGN KEY(job_id,account_id,plan_id) REFERENCES automation_jobs(id,account_id,plan_id) ON DELETE RESTRICT ON UPDATE RESTRICT);
+CREATE TABLE IF NOT EXISTS portal_task_credit_orders(id text PRIMARY KEY,user_id text NOT NULL REFERENCES portal_users(id),job_id text NOT NULL,mode text NOT NULL CHECK(mode IN('per_run','per_km')),units bigint NOT NULL CHECK(units>0),amount_micro bigint NOT NULL CHECK(amount_micro>=0),created_at timestamptz NOT NULL DEFAULT now());
+ALTER TABLE portal_charges ADD COLUMN IF NOT EXISTS funding_source text NOT NULL DEFAULT 'balance';
+ALTER TABLE portal_charges ADD COLUMN IF NOT EXISTS credit_job_id text NOT NULL DEFAULT '';
+ALTER TABLE portal_charges ADD COLUMN IF NOT EXISTS credit_mode text NOT NULL DEFAULT '';
+ALTER TABLE portal_charges ADD COLUMN IF NOT EXISTS credit_units bigint NOT NULL DEFAULT 0;
+CREATE INDEX IF NOT EXISTS portal_charges_credit_idx ON portal_charges(credit_job_id,state) WHERE funding_source='prepaid';
 CREATE TABLE IF NOT EXISTS portal_face_links(account_id text PRIMARY KEY REFERENCES runner_accounts(id) ON DELETE CASCADE,token_hash text NOT NULL,token_cipher bytea NOT NULL,expires_at timestamptz NOT NULL,updated_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE IF NOT EXISTS portal_task_links(job_id text PRIMARY KEY REFERENCES automation_jobs(id) ON DELETE CASCADE,token_hash text NOT NULL,token_cipher bytea NOT NULL,expires_at timestamptz NOT NULL,scope jsonb NOT NULL,updated_at timestamptz NOT NULL DEFAULT now());
 CREATE SEQUENCE IF NOT EXISTS portal_wallet_index_seq MINVALUE 0 START 0 MAXVALUE 2147483647;
 CREATE TABLE IF NOT EXISTS portal_wallet_addresses(user_id text PRIMARY KEY REFERENCES portal_users(id),address text NOT NULL UNIQUE,derivation_index bigint NOT NULL UNIQUE,created_at timestamptz NOT NULL DEFAULT now(),scanned_at timestamptz);
 ALTER TABLE portal_wallet_addresses ADD COLUMN IF NOT EXISTS full_scanned_at timestamptz;

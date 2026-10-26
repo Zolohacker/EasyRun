@@ -12,7 +12,7 @@
   .execution-logs-panel th:nth-child(5) { width: 15%; }
   .execution-logs-panel .list-viewport td { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .main-stage .job-row {
-    display: grid; grid-template-columns: 28px minmax(150px,1fr) minmax(150px,1.1fr) minmax(120px,.8fr) minmax(160px,1fr) 106px;
+    display: grid; grid-template-columns: 28px minmax(150px,1fr) minmax(150px,1.1fr) minmax(120px,.8fr) minmax(160px,1fr) 146px;
     gap: 10px; padding: 12px 14px; min-width: 0; align-items: center;
   }
   .main-stage .job-row > div { display: block; min-width: 0; }
@@ -21,9 +21,9 @@
   .main-stage .job-plan > span, .main-stage .job-distance > span { display: none; }
   .main-stage .account-list-head, .main-stage .account-list-row { grid-template-columns: minmax(150px,1.3fr) 100px 112px minmax(220px,1fr); min-width: 0; }
   .main-stage .account-row-actions { flex-wrap: wrap; gap: 6px; }
-  @container task-list (max-width: 840px) {
+  @container task-list (max-width: 920px) {
     .main-stage .job-row {
-      grid-template-columns: 28px minmax(0,1fr) minmax(140px,.8fr) 106px;
+      grid-template-columns: 28px minmax(0,1fr) minmax(140px,.8fr) 146px;
       grid-template-areas: "state title distance actions" "state plan schedule schedule";
       gap: 6px 10px; align-items: start;
     }

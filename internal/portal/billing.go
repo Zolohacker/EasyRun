@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"encoding/base32"
 	"errors"
-	"fmt"
 	"math"
 	"net/http"
 	"strings"
@@ -31,8 +30,8 @@ func runPrice(p Pricing, mode string, distanceM float64) (int64, error) {
 	}
 }
 
-// Reserve debits available balance atomically before work starts. One execution
-// is billed at most once. Only customer-owned jobs in commercial mode are paid.
+// Reserve moves prepaid principal into the in-flight pool before work starts.
+// Checkout already debited wallet balance; execution never debits it a second time.
 func (s *Service) Reserve(ctx context.Context, executionID string, j platform.JobContext) error {
 	ok, e := s.initialized(ctx)
 	if e != nil {
@@ -60,16 +59,13 @@ func (s *Service) Reserve(ctx context.Context, executionID string, j platform.Jo
 	if cfg.Mode != "commercial" {
 		return errors.New("客户任务仅在商业模式下执行")
 	}
-	if !cfg.Pricing.Enabled {
-		return nil
-	}
 	tx, e := s.db.Begin(ctx)
 	if e != nil {
 		return e
 	}
 	defer tx.Rollback(ctx)
-	var balance int64
-	e = tx.QueryRow(ctx, `SELECT balance_micro FROM portal_users WHERE id=$1 AND enabled FOR UPDATE`, j.Account.OwnerUserID).Scan(&balance)
+	var lockedUser string
+	e = tx.QueryRow(ctx, `SELECT id FROM portal_users WHERE id=$1 AND enabled FOR UPDATE`, j.Account.OwnerUserID).Scan(&lockedUser)
 	if e != nil {
 		return e
 	}
@@ -89,30 +85,23 @@ func (s *Service) Reserve(ctx context.Context, executionID string, j platform.Jo
 	if e != nil {
 		return e
 	}
-	amount := int64(0)
 	if !entitlement {
-		mode := "per_run"
-		e = tx.QueryRow(ctx, `SELECT mode FROM portal_job_billing WHERE job_id=$1`, j.Job.ID).Scan(&mode)
-		if e != nil && !errors.Is(e, pgx.ErrNoRows) {
-			return e
+		handled, err := reserveTaskCredit(ctx, tx, executionID, j)
+		if err != nil {
+			return err
 		}
-		amount, e = runPrice(cfg.Pricing, mode, j.Plan.TargetDistanceM)
-		if e != nil {
-			return e
+		if handled {
+			return tx.Commit(ctx)
+		}
+		if cfg.Pricing.Enabled {
+			return errors.New("请先下单预扣次数或公里额度，再执行任务")
 		}
 	}
-	if amount > balance {
-		return fmt.Errorf("余额不足：需要 %.6f USDT，可用 %.6f USDT", float64(amount)/float64(MicroUSDT), float64(balance)/float64(MicroUSDT))
+	if !cfg.Pricing.Enabled {
+		return nil
 	}
-	_, e = tx.Exec(ctx, `UPDATE portal_users SET balance_micro=balance_micro-$2 WHERE id=$1`, j.Account.OwnerUserID, amount)
-	if e != nil {
-		return e
-	}
-	_, e = tx.Exec(ctx, `INSERT INTO portal_charges(execution_id,user_id,amount_micro,state) VALUES($1,$2,$3,'reserved')`, executionID, j.Account.OwnerUserID, amount)
-	if e != nil {
-		return e
-	}
-	_, e = tx.Exec(ctx, `INSERT INTO portal_ledger(id,user_id,delta_micro,kind,reference)VALUES($1,$2,$3,'run_reserve',$4)`, platform.NewID("led"), j.Account.OwnerUserID, -amount, "execution:"+executionID)
+	// A full-plan entitlement is recorded for idempotency, with no extra hold.
+	_, e = tx.Exec(ctx, `INSERT INTO portal_charges(execution_id,user_id,amount_micro,state,funding_source) VALUES($1,$2,0,'reserved','package')`, executionID, j.Account.OwnerUserID)
 	if e != nil {
 		return e
 	}
@@ -124,9 +113,19 @@ func (s *Service) Finish(ctx context.Context, executionID string, success bool) 
 		return e
 	}
 	defer tx.Rollback(ctx)
-	var user, state string
-	var amount int64
-	e = tx.QueryRow(ctx, `SELECT user_id,amount_micro,state FROM portal_charges WHERE execution_id=$1 FOR UPDATE`, executionID).Scan(&user, &amount, &state)
+	var user, state, funding, creditJob, creditMode string
+	var amount, creditUnits int64
+	// All money mutations use owner -> charge -> credit lock order, including
+	// cancellation, execution reservation and success settlement.
+	if e = tx.QueryRow(ctx, `SELECT user_id FROM portal_charges WHERE execution_id=$1`, executionID).Scan(&user); errors.Is(e, pgx.ErrNoRows) {
+		return nil
+	} else if e != nil {
+		return e
+	}
+	if _, e = tx.Exec(ctx, `SELECT id FROM portal_users WHERE id=$1 FOR UPDATE`, user); e != nil {
+		return e
+	}
+	e = tx.QueryRow(ctx, `SELECT user_id,amount_micro,state,funding_source,credit_job_id,credit_mode,credit_units FROM portal_charges WHERE execution_id=$1 FOR UPDATE`, executionID).Scan(&user, &amount, &state, &funding, &creditJob, &creditMode, &creditUnits)
 	if errors.Is(e, pgx.ErrNoRows) {
 		return nil
 	}
@@ -137,15 +136,22 @@ func (s *Service) Finish(ctx context.Context, executionID string, success bool) 
 		return nil
 	}
 	next := "settled"
-	if !success {
-		next = "refunded"
-		_, e = tx.Exec(ctx, `UPDATE portal_users SET balance_micro=balance_micro+$2 WHERE id=$1`, user, amount)
-		if e != nil {
+	if funding == "prepaid" {
+		if e = settleTaskCredit(ctx, tx, executionID, creditJob, user, creditMode, creditUnits, amount, success); e != nil {
 			return e
 		}
-		_, e = tx.Exec(ctx, `INSERT INTO portal_ledger(id,user_id,delta_micro,kind,reference) VALUES($1,$2,$3,'run_refund',$4)`, platform.NewID("led"), user, amount, "refund:"+executionID)
-		if e != nil {
-			return e
+	}
+	if !success {
+		next = "refunded"
+		if funding == "balance" {
+			_, e = tx.Exec(ctx, `UPDATE portal_users SET balance_micro=balance_micro+$2 WHERE id=$1`, user, amount)
+			if e != nil {
+				return e
+			}
+			_, e = tx.Exec(ctx, `INSERT INTO portal_ledger(id,user_id,delta_micro,kind,reference) VALUES($1,$2,$3,'run_refund',$4)`, platform.NewID("led"), user, amount, "refund:"+executionID)
+			if e != nil {
+				return e
+			}
 		}
 	}
 	_, e = tx.Exec(ctx, `UPDATE portal_charges SET state=$2 WHERE execution_id=$1`, executionID, next)
@@ -165,7 +171,7 @@ func (s *Service) billingSummary(w http.ResponseWriter, r *http.Request) {
 		s.dbError(w, e)
 		return
 	}
-	rows, e := s.db.Query(r.Context(), `SELECT id,user_id,delta_micro,kind,reference,created_at FROM portal_ledger WHERE user_id=$1 ORDER BY created_at DESC LIMIT 100`, u.ID)
+	rows, e := s.db.Query(r.Context(), `SELECT id,user_id,delta_micro,kind,reference,created_at,funding_amount_micro FROM portal_ledger WHERE user_id=$1 ORDER BY created_at DESC LIMIT 100`, u.ID)
 	if e != nil {
 		s.dbError(w, e)
 		return
@@ -173,7 +179,7 @@ func (s *Service) billingSummary(w http.ResponseWriter, r *http.Request) {
 	entries := []LedgerEntry{}
 	for rows.Next() {
 		var x LedgerEntry
-		e = rows.Scan(&x.ID, &x.UserID, &x.DeltaMicro, &x.Kind, &x.Reference, &x.CreatedAt)
+		e = rows.Scan(&x.ID, &x.UserID, &x.DeltaMicro, &x.Kind, &x.Reference, &x.CreatedAt, &x.FundingAmountMicro)
 		if e != nil {
 			rows.Close()
 			s.dbError(w, e)
@@ -254,8 +260,33 @@ func (s *Service) setJobBilling(w http.ResponseWriter, r *http.Request) {
 		fail(w, 400, "计费方式不正确")
 		return
 	}
-	_, e = s.db.Exec(r.Context(), `INSERT INTO portal_job_billing(job_id,mode)VALUES($1,$2)ON CONFLICT(job_id)DO UPDATE SET mode=EXCLUDED.mode`, j.ID, in.Mode)
+	tx, e := s.db.Begin(r.Context())
 	if e != nil {
+		s.dbError(w, e)
+		return
+	}
+	defer tx.Rollback(r.Context())
+	var locked string
+	if e = tx.QueryRow(r.Context(), `SELECT id FROM automation_jobs WHERE id=$1 FOR UPDATE`, j.ID).Scan(&locked); e != nil {
+		fail(w, 404, "任务不存在")
+		return
+	}
+	var prepaidMode string
+	e = tx.QueryRow(r.Context(), `SELECT mode FROM portal_task_credits WHERE job_id=$1`, j.ID).Scan(&prepaidMode)
+	if e != nil && !errors.Is(e, pgx.ErrNoRows) {
+		s.dbError(w, e)
+		return
+	}
+	if prepaidMode != "" && prepaidMode != in.Mode {
+		fail(w, 409, "此任务已有预付方式；额度用完后可在预付页面选择新方式续费")
+		return
+	}
+	_, e = tx.Exec(r.Context(), `INSERT INTO portal_job_billing(job_id,mode)VALUES($1,$2)ON CONFLICT(job_id)DO UPDATE SET mode=EXCLUDED.mode`, j.ID, in.Mode)
+	if e != nil {
+		s.dbError(w, e)
+		return
+	}
+	if e = tx.Commit(r.Context()); e != nil {
 		s.dbError(w, e)
 		return
 	}
