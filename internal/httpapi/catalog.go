@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/Zolohacker/EasyRun/internal/activity"
+	"github.com/Zolohacker/EasyRun/internal/deviceprofile"
 	"github.com/Zolohacker/EasyRun/internal/geo"
 	"github.com/Zolohacker/EasyRun/internal/platform"
 	"github.com/Zolohacker/EasyRun/internal/store"
@@ -358,6 +359,13 @@ func (a *api) validateAccount(r *http.Request, account *platform.Account) error 
 	}
 	account.ModelName = strings.TrimSpace(account.ModelName)
 	account.SystemVersion = strings.TrimSpace(account.SystemVersion)
+	if account.ID == "" {
+		model, version, err := deviceprofile.Complete(account.ModelName, account.SystemVersion, time.Now())
+		if err != nil {
+			return err
+		}
+		account.ModelName, account.SystemVersion = model, version
+	}
 	return nil
 }
 

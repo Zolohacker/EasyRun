@@ -1,5 +1,6 @@
 import {availableRouteMode,routeMapError} from './manualRoutes'
 import {isOpaqueWireValue,accountDisplayName,accountStudentNumber,accountSelectorLabel} from './accountLabels'
+import {deviceProfile,newAccountForm,randomDeviceIdentity} from './deviceProfiles'
 import SearchSelect from './SearchSelect'
 import Modal from './Modal'
 import BrandMark from './BrandMark'
@@ -385,9 +386,8 @@ function RouteTest({accounts, plans, areas, runs, metrics, config, notify, onRef
 }
 
 function Accounts({accounts,config,user,notify,onRefresh}: {accounts:Account[];config:Config|null;user:PortalUser;notify:(message:string)=>void;onRefresh:()=>Promise<void>}) {
-  const emptyForm = {login_name:'', password:'', note:'', fence_index:0, device_id:'', model_name:'Redmi|23013RK75C', system_version:'14'}
   const [open, setOpen] = useState(false)
-  const [form, setForm] = useState(emptyForm)
+  const [form, setForm] = useState(newAccountForm)
   const [autoTask,setAutoTask]=useState(false)
   const [loginMode, setLoginMode] = useState<'password'|'sms'>('password')
   const [edit, setEdit] = useState<(Account & {password?:string})|null>(null)
@@ -407,6 +407,14 @@ function Accounts({accounts,config,user,notify,onRefresh}: {accounts:Account[];c
   const filteredAccounts=accounts.filter(account=>!admin||!ownerID||(ownerID==='__unassigned__'?!account.owner_user_id:account.owner_user_id===ownerID))
   const accountPages=usePagination(filteredAccounts,ownerID)
   const ownerName=(id?:string)=>owners.find(owner=>owner.id===id)?.email||(id?`用户 ${id}`:'未分配用户')
+  const selectedDevice=deviceProfile(form.model_name)
+  const verifiedDevice=selectedDevice?.android_versions.includes(form.system_version)?selectedDevice:undefined
+  const openAdd=()=>{setForm(newAccountForm());setLoginMode('password');setAutoTask(false);setOpen(true)}
+  const randomizeDevice=()=>{
+    const identity=randomDeviceIdentity(new Date(),undefined,form.model_name)
+    if(!identity){notify('机型资料库已过期，请手动填写设备信息');return}
+    setForm(current=>({...current,...identity}))
+  }
 
   const finishOnboarding=async(account:Account,createTask:boolean)=>{
     let message='登录成功，账号已添加'
@@ -424,7 +432,7 @@ function Accounts({accounts,config,user,notify,onRefresh}: {accounts:Account[];c
         }
       }catch(e){message+=`；任务创建未完成：${(e as Error).message}`}
     }
-    setOpen(false);setForm(emptyForm);setAutoTask(false);notify(message);await onRefresh()
+    setOpen(false);setForm(newAccountForm());setAutoTask(false);notify(message);await onRefresh()
   }
 
   const add = async (event:FormEvent) => {
@@ -631,7 +639,7 @@ function Accounts({accounts,config,user,notify,onRefresh}: {accounts:Account[];c
   }
 
   return <div className="page-stack">
-    <section className="page-toolbar"><button className="button primary" onClick={() => setOpen(true)}><Plus size={17}/>添加账号</button></section>
+    <section className="page-toolbar"><button className="button primary" onClick={openAdd}><Plus size={17}/>添加账号</button></section>
     {admin&&<section className="panel account-owner-filter"><Field label="所属用户"><SearchSelect value={ownerID} onChange={e=>setOwnerID(e.target.value)}><option value="">全部用户</option>{owners.map(owner=><option key={owner.id} value={owner.id}>{owner.email} · {({superadmin:'超级管理员',admin:'管理员',customer:'客户'} as const)[owner.role]}</option>)}{accounts.some(account=>!account.owner_user_id)&&<option value="__unassigned__">未分配用户</option>}</SearchSelect></Field><div><strong>{filteredAccounts.length}<span> / {accounts.length} 个账号</span></strong></div>{ownerID&&<button className="button subtle" onClick={()=>setOwnerID('')}>清除筛选</button>}</section>}
     <section className="panel account-list-panel">
       <ListViewport pagination={accountPages} className="account-list">{!!filteredAccounts.length && <div className="account-list-head"><span>绑定身份</span><span>学号</span><span>人脸</span><span>操作</span></div>}{accountPages.items.map(account => <article className={`account-list-row ${account.enabled ? '' : 'disabled'}`} key={account.id}>
@@ -651,11 +659,12 @@ function Accounts({accounts,config,user,notify,onRefresh}: {accounts:Account[];c
           {loginMode==='password' && <Field label="账号密码"><input required type="password" autoComplete="new-password" value={form.password} onChange={event => setForm({...form, password:event.target.value})} placeholder="请输入账号密码"/></Field>}
         </div>
         <details className="account-device-section advanced-options" onInvalidCapture={event=>{event.currentTarget.open=true}}><summary><CloudCog size={17}/><span>高级选项 · 设备身份</span><small>建议保持默认</small></summary>
-          <p className="portal-hint">Android ID 留空时自动生成并保存。</p>
+          <div className="account-device-random"><div><strong>{verifiedDevice?.name||'手动设备配置'}</strong><span>{verifiedDevice?`Android ${form.system_version} · 已核对组合`:'请填写对应的真实机型与系统版本'}</span></div><button type="button" className="button subtle" disabled={busy==='add'} onClick={randomizeDevice}><Shuffle size={15}/>换一组</button></div>
+          <p className="portal-hint">机型与系统成套随机，保存后保持不变。Android ID 留空自动生成。</p>
           <div className="account-device-grid">
-            <Field label="Android ID"><input value={form.device_id} maxLength={16} pattern="[0-9a-fA-F]{16}" autoCapitalize="none" autoCorrect="off" spellCheck={false} onChange={event => setForm({...form, device_id:event.target.value.replace(/[^0-9a-fA-F]/g,'').slice(0,16)})} placeholder="留空自动生成"/></Field>
-            <Field label="设备机型"><input value={form.model_name} onChange={event => setForm({...form, model_name:event.target.value})}/></Field>
-            <Field label="Android 版本"><input value={form.system_version} onChange={event => setForm({...form, system_version:event.target.value})}/></Field>
+            <Field label="Android ID"><input disabled={busy==='add'} value={form.device_id} maxLength={16} pattern="[0-9a-fA-F]{16}" autoCapitalize="none" autoCorrect="off" spellCheck={false} onChange={event => setForm({...form, device_id:event.target.value.replace(/[^0-9a-fA-F]/g,'').slice(0,16)})} placeholder="留空自动生成"/></Field>
+            <Field label="设备机型"><input required disabled={busy==='add'} value={form.model_name} onChange={event => setForm({...form, model_name:event.target.value})}/></Field>
+            <Field label="Android 版本"><input required disabled={busy==='add'} value={form.system_version} onChange={event => setForm({...form, system_version:event.target.value})}/></Field>
           </div>
         </details>
         <label className="portal-toggle"><input type="checkbox" checked={autoTask&&!!config?.map_api_configured} disabled={!config?.map_api_configured} onChange={event=>setAutoTask(event.target.checked)}/><span>自动添加任务（默认暂停，确认后启用）</span></label>{!config?.map_api_configured&&<p className="portal-hint">尚未配置地图 Key，请添加账号后先绘制路线，再创建任务。</p>}

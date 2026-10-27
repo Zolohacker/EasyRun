@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/Zolohacker/EasyRun/internal/activity"
+	"github.com/Zolohacker/EasyRun/internal/deviceprofile"
 	"github.com/Zolohacker/EasyRun/internal/geo"
 	"github.com/Zolohacker/EasyRun/internal/platform"
 	"github.com/Zolohacker/EasyRun/internal/protocol"
@@ -91,6 +92,16 @@ func (s *Service) UpdateAccount(ctx context.Context, desired platform.Account, p
 	desired.AuthStatus = existing.AuthStatus
 	desired.AuthMessage = existing.AuthMessage
 	desired.LastAuthAt = existing.LastAuthAt
+	// Partial metadata edits must not silently replace a saved device identity.
+	if strings.TrimSpace(desired.DeviceID) == "" {
+		desired.DeviceID = existing.DeviceID
+	}
+	if strings.TrimSpace(desired.ModelName) == "" {
+		desired.ModelName = existing.ModelName
+	}
+	if strings.TrimSpace(desired.SystemVersion) == "" && strings.EqualFold(strings.TrimSpace(desired.ModelName), existing.ModelName) {
+		desired.SystemVersion = existing.SystemVersion
+	}
 	if strings.TrimSpace(password) != "" {
 		desired.PasswordCipher, err = s.vault.Encrypt([]byte(password), passwordAAD(desired.ID))
 		if err != nil {
@@ -102,7 +113,9 @@ func (s *Service) UpdateAccount(ctx context.Context, desired platform.Account, p
 		desired.AuthMessage = "密码已更新，请重新登录"
 		desired.LastAuthAt = nil
 	}
-	s.applyDefaults(&desired)
+	if err := s.applyDefaults(&desired); err != nil {
+		return platform.Account{}, err
+	}
 	return s.store.UpdateAccount(ctx, desired)
 }
 
@@ -155,7 +168,10 @@ func (s *Service) PasswordLogin(ctx context.Context, accountID string) (AccountL
 // local row. A 10101 response starts the same SMS continuation used by the
 // Android client and returns the generated device draft without persisting it.
 func (s *Service) OnboardPassword(ctx context.Context, account platform.Account, password string) (AccountLoginResult, error) {
-	account = s.prepareOnboardingAccount(account)
+	account, err := s.prepareOnboardingAccount(account)
+	if err != nil {
+		return AccountLoginResult{}, err
+	}
 	if strings.TrimSpace(password) == "" {
 		return AccountLoginResult{}, errors.New("密码登录需要填写账号密码")
 	}
@@ -183,7 +199,10 @@ func (s *Service) OnboardPassword(ctx context.Context, account platform.Account,
 // BeginOnboardSMS requests a verification code without creating a database
 // row. The returned draft carries the generated device id into verification.
 func (s *Service) BeginOnboardSMS(ctx context.Context, account platform.Account) (AccountLoginResult, error) {
-	account = s.prepareOnboardingAccount(account)
+	account, err := s.prepareOnboardingAccount(account)
+	if err != nil {
+		return AccountLoginResult{}, err
+	}
 	if err := s.ensureLoginAvailable(ctx, account.LoginName); err != nil {
 		return AccountLoginResult{}, err
 	}
@@ -197,7 +216,10 @@ func (s *Service) BeginOnboardSMS(ctx context.Context, account platform.Account)
 // CompleteOnboardSMS performs the remote login first and inserts the account
 // only after a complete token pair has been received.
 func (s *Service) CompleteOnboardSMS(ctx context.Context, account platform.Account, password, code, ticket string) (platform.Account, error) {
-	account = s.prepareOnboardingAccount(account)
+	account, err := s.prepareOnboardingAccount(account)
+	if err != nil {
+		return platform.Account{}, err
+	}
 	if err := s.ensureLoginAvailable(ctx, account.LoginName); err != nil {
 		return platform.Account{}, err
 	}
@@ -840,7 +862,7 @@ func (s *Service) attachSession(account platform.Account, session protocol.Sessi
 	return account, nil
 }
 
-func (s *Service) prepareOnboardingAccount(account platform.Account) platform.Account {
+func (s *Service) prepareOnboardingAccount(account platform.Account) (platform.Account, error) {
 	account.ID = ""
 	account.DefaultPlanID = nil
 	account.DefaultAreaID = nil
@@ -860,8 +882,10 @@ func (s *Service) prepareOnboardingAccount(account platform.Account) platform.Ac
 	account.CreatedAt = time.Time{}
 	account.UpdatedAt = time.Time{}
 	account.Enabled = true
-	s.applyDefaults(&account)
-	return account
+	if err := s.applyDefaults(&account); err != nil {
+		return platform.Account{}, err
+	}
+	return account, nil
 }
 
 func (s *Service) ensureLoginAvailable(ctx context.Context, loginName string) error {
@@ -880,7 +904,9 @@ func (s *Service) ensureLoginAvailable(ctx context.Context, loginName string) er
 
 func (s *Service) createAuthenticatedAccount(ctx context.Context, account platform.Account, password string, session protocol.Session) (platform.Account, error) {
 	account.ID = platform.NewID("acct")
-	s.applyDefaults(&account)
+	if err := s.applyDefaults(&account); err != nil {
+		return platform.Account{}, err
+	}
 	if strings.TrimSpace(password) != "" {
 		ciphertext, err := s.vault.Encrypt([]byte(password), passwordAAD(account.ID))
 		if err != nil {
@@ -953,7 +979,7 @@ func (s *Service) observeSessionError(ctx context.Context, account *platform.Acc
 	return true
 }
 
-func (s *Service) applyDefaults(account *platform.Account) {
+func (s *Service) applyDefaults(account *platform.Account) error {
 	account.LoginName = strings.TrimSpace(account.LoginName)
 	if account.Name == "" {
 		account.Name = account.LoginName
@@ -966,12 +992,11 @@ func (s *Service) applyDefaults(account *platform.Account) {
 			account.DeviceID = strings.TrimPrefix(platform.NewID(""), "_")
 		}
 	}
-	if account.ModelName == "" {
-		account.ModelName = "Redmi|23013RK75C"
+	model, version, err := deviceprofile.Complete(account.ModelName, account.SystemVersion, time.Now())
+	if err != nil {
+		return err
 	}
-	if account.SystemVersion == "" {
-		account.SystemVersion = "14"
-	}
+	account.ModelName, account.SystemVersion = model, version
 	if account.AuthStatus == "" {
 		if len(account.SessionCipher) > 0 {
 			account.AuthStatus = "authenticated"
@@ -981,6 +1006,7 @@ func (s *Service) applyDefaults(account *platform.Account) {
 			account.AuthStatus = "unconfigured"
 		}
 	}
+	return nil
 }
 
 func (s *Service) lock(accountID string) func() {

@@ -130,6 +130,12 @@
 .account-device-grid{display:grid;grid-template-columns:minmax(180px,1.2fr) minmax(190px,1.35fr) minmax(105px,.6fr);gap:11px;align-items:end;margin-top:12px}
 .account-device-grid input{height:39px}
 .account-device-grid .field:first-child input{font-family:ui-monospace;letter-spacing:.035em}
+.account-device-random{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:16px;min-width:0}
+.account-device-random>div{display:grid;gap:4px;min-width:0}
+.account-device-random strong{font-size:14px;line-height:1.5;color:var(--ink);overflow-wrap:anywhere}
+.account-device-random span{font-size:13px;line-height:1.5;color:var(--muted)}
+.account-device-random>.button{flex:0 0 auto;height:36px;padding:0 11px;font-size:13px;white-space:nowrap}
+.account-device-random+.portal-hint{margin:10px 0 0;font-size:13px;line-height:1.6}
 @media(max-width:620px){.modal.account-modal{padding:18px}.account-login-fields,.account-login-fields.single,.account-device-grid{grid-template-columns:1fr}.account-device-section{padding:12px}}
 
 /* Human-readable sunshine-run workflow status. */
