@@ -119,19 +119,74 @@ func (c *Client) RunQuotaUsage(ctx context.Context, device Device, session Sessi
 }
 
 func parseRunQuotaPage(raw json.RawMessage) ([]map[string]any, bool, error) {
-	items, err := unwrapArray(raw)
-	if err != nil {
-		return nil, false, fmt.Errorf("解析跑步记录分页: %w", err)
-	}
 	var root any
 	if err := json.Unmarshal(raw, &root); err != nil {
-		return nil, false, fmt.Errorf("解析跑步记录分页元数据: %w", err)
+		return nil, false, fmt.Errorf("解析跑步记录分页: %w", err)
+	}
+	items, err := unwrapArray(raw)
+	if err != nil {
+		if isEmptyRunQuotaPage(root) {
+			return []map[string]any{}, false, nil
+		}
+		return nil, false, fmt.Errorf("解析跑步记录分页: %w", err)
 	}
 	hasNext, found := recursiveBool(root, "hasNext")
 	if !found {
 		hasNext = len(items) == 20
 	}
 	return items, hasNext, nil
+}
+
+// New accounts can have a null/empty page or pagination metadata without a
+// list. Only recognize empty record pages here: unrelated responses and pages
+// advertising more records must still fail, and other list APIs remain strict.
+func isEmptyRunQuotaPage(value any) bool {
+	switch typed := value.(type) {
+	case nil:
+		return true
+	case []any:
+		return len(typed) == 0
+	case map[string]any:
+		empty := len(typed) == 0
+		for key, child := range typed {
+			switch key {
+			case "list", "records", "items", "data":
+				if !isEmptyRunQuotaPage(child) {
+					return false
+				}
+				empty = true
+			case "total":
+				total, ok := numericValue(child)
+				if !ok || total != 0 {
+					return false
+				}
+				empty = true
+			case "hasNext":
+				hasNext, ok := child.(bool)
+				if text, isString := child.(string); isString {
+					var err error
+					hasNext, err = strconv.ParseBool(text)
+					ok = err == nil
+				}
+				if !ok || hasNext {
+					return false
+				}
+				empty = true
+			case "pageNum", "pageSize", "refreshTime":
+				// Pagination metadata alone does not establish an empty page.
+				switch child.(type) {
+				case nil, float64, string:
+				default:
+					return false
+				}
+			default:
+				return false
+			}
+		}
+		return empty
+	default:
+		return false
+	}
 }
 
 func recursiveBool(value any, key string) (bool, bool) {
