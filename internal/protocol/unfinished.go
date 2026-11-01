@@ -14,6 +14,7 @@ const abnormalMissingRunData = 7001
 type unfinishedRun struct {
 	RunRecordCode string `json:"runRecordCode"`
 	SportType     int    `json:"sportType"`
+	Ext           string `json:"ext"`
 }
 
 func (c *Client) queryUnfinishedRun(ctx context.Context, device Device, session Session) (*unfinishedRun, error) {
@@ -47,7 +48,7 @@ func (c *Client) finishUnfinishedRunBeforeStart(ctx context.Context, device Devi
 	if run.SportType != 1 {
 		return fmt.Errorf("未完成跑步 %s 的运动类型为 %d，与阳光跑不匹配，本次起跑已停止", run.RunRecordCode, run.SportType)
 	}
-	if err := c.abortSunRun(ctx, device, session, run.RunRecordCode, abnormalMissingRunData); err != nil {
+	if err := c.abortSunRun(ctx, device, session, run.RunRecordCode, abnormalMissingRunData, run.Ext); err != nil {
 		return fmt.Errorf("结束未完成跑步 %s 失败，本次起跑已停止: %w", run.RunRecordCode, err)
 	}
 	remaining, err := c.queryUnfinishedRun(ctx, device, session)

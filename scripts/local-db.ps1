@@ -226,7 +226,7 @@ function Write-AppEnvironment {
     }
 
     # Migrate the incorrect Sd environment pair written by earlier platform builds.
-    # The observed 8.7.9 startup path calls k43.a(9), whose production base is api.huachenjie.com.
+    # The observed 8.8.1 startup path calls k43.a(9), whose production base is api.huachenjie.com.
     if ($values["PROTOCOL_BASE_URL"] -eq "https://sd-api.huachenjie.com/run-front" -and
         $values["PROTOCOL_ENVIRONMENT"] -eq "11") {
         $values["PROTOCOL_BASE_URL"] = "https://api.huachenjie.com/run-front"

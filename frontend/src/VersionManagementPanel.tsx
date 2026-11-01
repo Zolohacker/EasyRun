@@ -49,11 +49,12 @@ export default function VersionManagementPanel({user,notify}:{user:PortalUser;no
     <article className={`panel version-card ${!client.automation_allowed?'version-blocked':''}`}>
       <div className="version-heading"><h2>闪动校园版本</h2><span className={`status-pill ${client.automation_allowed?'ok':'warn'}`}>{clientVersionLabel(client)}</span></div>
       <div className="version-number"><strong>{client.latest_version||'待核实'}</strong><span>{client.have_update?'最新版本':'当前可用版本'}</span></div>
-      <dl className="version-facts"><div><dt>当前适配</dt><dd>{client.current_version} <small>Build {client.current_build}</small></dd></div>{client.support_version&&<div><dt>最低支持</dt><dd>{client.support_version}</dd></div>}<div><dt>最后检查</dt><dd>{time(client.checked_at)}</dd></div></dl>
+      <dl className="version-facts"><div><dt>当前适配</dt><dd>{client.current_version} <small>Build {client.current_build}</small></dd></div>{client.market_version&&<div><dt>应用市场</dt><dd>{client.market_version}</dd></div>}{client.support_version&&<div><dt>最低支持</dt><dd>{client.support_version}</dd></div>}<div><dt>最后检查</dt><dd>{time(client.checked_at)}</dd></div></dl>
       <p className={`version-gate ${client.automation_allowed?'allowed':''}`} role={client.automation_allowed?'status':'alert'}>{client.automation_allowed?<ShieldCheck/>:<ShieldAlert/>}<span>{client.reason}</span></p>
       {client.last_error&&<p className="version-error">{client.last_error}</p>}
+      {client.market_error&&<p className="version-error">{client.market_error}</p>}
       {client.description&&<details className="version-notes"><summary>{client.title||'客户端更新说明'}</summary><p>{client.description}</p></details>}
-      <div className="version-footer"><span>每 5 分钟自动检查</span><button className="button subtle" disabled={!!busy} onClick={()=>void check('client')}><RefreshCw className={busy==='client'?'spin':''}/>检查版本</button></div>
+      <div className="version-footer"><span>客户端接口 + {client.market_url?<a href={client.market_url} target="_blank" rel="noopener noreferrer">应用市场</a>:'应用市场'} · 每 5 分钟检查</span><button className="button subtle" disabled={!!busy} onClick={()=>void check('client')}><RefreshCw className={busy==='client'?'spin':''}/>检查版本</button></div>
     </article>
     <article className="panel version-card">
       <div className="version-heading"><h2>EasyRun 平台更新</h2><span className={`status-pill ${platform.has_update||platform.last_error?'warn':'ok'}`}>{pending?updatePhaseLabel(platform.phase):platform.last_error?'更新源待就绪':platform.has_update?'发现新版本':'当前版本'}</span></div>

@@ -965,7 +965,7 @@ function Automation({jobs, accounts, plans, areas, executions, config, customer,
   const closeEditor = () => { if(busy==='save')return;setOpen(false); setEditing(null); setForm(emptyAutomationForm()) }
   const runNow = async (job:Job) => {
     setBusy(job.id + ':run')
-    try { await api.runJob(job.id); notify('任务已入队，将按 8.7.9 协议执行'); await onRefresh() }
+    try { await api.runJob(job.id); notify('任务已入队，将按 8.8.1 协议执行'); await onRefresh() }
     catch (error) { notify((error as Error).message) }
     finally { setBusy('') }
   }

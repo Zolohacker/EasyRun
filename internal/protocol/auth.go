@@ -35,7 +35,7 @@ type SMSChallenge struct {
 
 const PasswordVerificationRequiredCode = 10101
 
-// IsPasswordVerificationRequired mirrors PasswordVM in the 8.7.9 client:
+// IsPasswordVerificationRequired mirrors PasswordVM in the 8.8.1 client:
 // response code 10101 leaves password login pending and moves the user to the
 // SMS-code flow.
 func IsPasswordVerificationRequired(err error) bool {
@@ -160,6 +160,7 @@ func (c *Client) ValidateSession(ctx context.Context, device Device, session Ses
 		return Session{}, err
 	}
 	mergeSessionFields(envelope.Data, &session)
+	mergeRunRiskSalt(envelope.Data, &session)
 	if err := c.enrichSchool(ctx, device, &session); IsSessionExpired(err) {
 		return Session{}, err
 	}
@@ -169,6 +170,7 @@ func (c *Client) ValidateSession(ctx context.Context, device Device, session Ses
 func (c *Client) enrichSession(ctx context.Context, device Device, session *Session) error {
 	if envelope, err := c.post(ctx, "account/queryCommonUserInfo", device, nil, requestOptions{form: true, session: *session}); err == nil {
 		mergeSessionFields(envelope.Data, session)
+		mergeRunRiskSalt(envelope.Data, session)
 	} else if IsSessionExpired(err) {
 		return err
 	}
@@ -185,6 +187,12 @@ func (c *Client) enrichSchool(ctx context.Context, device Device, session *Sessi
 		return err
 	}
 	return nil
+}
+
+func mergeRunRiskSalt(raw json.RawMessage, session *Session) {
+	if candidate := findStringInJSON(raw, "ext"); candidate != "" {
+		session.RiskSaltCipher = candidate
+	}
 }
 
 func mergeSessionFields(raw json.RawMessage, session *Session) {

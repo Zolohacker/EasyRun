@@ -1,5 +1,6 @@
 export type ClientVersionStatus = {
   current_version:string;current_build:string;latest_version:string;support_version:string
+  version_source:string;market_version:string;market_url:string;market_error:string
   have_update:boolean;force_update:boolean;known:boolean;automation_allowed:boolean
   reason:string;last_error:string;checked_at?:string;success_at?:string;title:string;description:string;maintenance:boolean
 }

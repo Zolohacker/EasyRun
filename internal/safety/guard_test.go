@@ -107,3 +107,27 @@ func TestUnknownAndStaleChecksBlockWithoutStampeding(t *testing.T) {
 		t.Fatal("expired safe state allowed", err)
 	}
 }
+
+func TestMarketVersionMetadataIsExposedWithoutChangingTheGate(t *testing.T) {
+	check := &fakeChecker{result: protocol.AppUpdate{
+		NewVersion:    "8.9.0",
+		HaveUpdate:    true,
+		VersionSource: "client_update_api+app_market",
+		MarketVersion: "8.9.0",
+		MarketURL:     protocol.DefaultAppMarketURL,
+	}}
+	g, err := New(context.Background(), nil, check, "fixture", protocol.Device{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := g.Refresh(context.Background(), true); err != nil {
+		t.Fatal(err)
+	}
+	status := g.Snapshot()
+	if status.LatestVersion != "8.9.0" || status.MarketVersion != "8.9.0" || status.MarketURL != protocol.DefaultAppMarketURL || status.VersionSource != "client_update_api+app_market" {
+		t.Fatal("market metadata was not propagated", status)
+	}
+	if !status.Allowed || status.ForceUpdate {
+		t.Fatal("optional market release changed the execution gate", status)
+	}
+}

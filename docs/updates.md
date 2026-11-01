@@ -11,10 +11,12 @@
 
 ## 客户端检查更新
 
-- 使用已适配 Android `8.7.9` / Build `26101910` 的 `POST /run-front/common/update`，复用协议客户端公共参数；不使用任何客户的登录凭据。
-- 接口来源：客户端 `BaseApi.l()`、`CommonApi.v()`，返回模型 `VersionUpgrade` 与 `VersionUpgradeDialog`。
+- 使用已适配 Android `8.8.1` / Build `26102914` 的 `POST /run-front/common/update`，复用协议客户端公共参数；不使用任何客户的登录凭据。
+- 同时读取[腾讯应用宝详情页](https://sj.qq.com/appdetail/com.huachenjie.shandong_school)内嵌的 `__NEXT_DATA__`，按包名 `com.huachenjie.shandong_school` 提取 `version_name`。应用市场用于补全“已发布的最新版本”，客户端接口仍单独决定 `forceUpdate` 与 `supportVersion`。
+- 接口来源：客户端 `BaseApi.k()`、`CommonApi.v()`，返回模型 `VersionUpgrade` 与 `VersionUpgradeDialog`。
 - 读取 `haveUpdate`、`forceUpdate`、`newVersion`、`supportVersion`、更新标题及说明。
-- 真实无更新响应会省略 `forceUpdate`、版本号为空。只有明确 `haveUpdate=false` 时才把省略的强更标志解释为 false，并展示“当前渠道可用版本”为当前适配版本；不宣称其他渠道版本已验证。
+- 真实无更新响应会省略 `forceUpdate`、版本号为空。只有明确 `haveUpdate=false` 时才把省略的强更标志解释为 false；随后与应用市场版本做数字版本比较。市场版本更高时展示为可选更新，但不会据此设置强更。
+- 应用市场补充检查失败不会覆盖客户端接口结果或关闭执行门禁，后台会单独展示市场错误；客户端接口失败仍按门禁规则处理。
 - 启动及每 **5 分钟**检查，可在总览手动检查（每分钟一次）。结果持久化，重启后仍保留强更状态。
 - 首次未成功核实、响应格式异常且没有有效缓存、缓存超过 **10 分钟**时，服务端关闭执行门禁。短暂网络失败保留已核实结果；错误不会清除已经确认的强更标记。
 - `forceUpdate=true`：拒绝手动触发和定时执行，队列中任务在执行前跳过并写明原因；已经执行的跑步任务会收到取消信号，停止后续请求。定时到期的受阻任务记录为跳过，恢复后不集中补跑。

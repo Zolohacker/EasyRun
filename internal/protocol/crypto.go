@@ -11,17 +11,23 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 )
 
 const (
-	AppVersion   = "8.7.9"
-	BuildVersion = "26101910"
+	AppVersion   = "8.8.1"
+	BuildVersion = "26102914"
 	AppCode      = "SD001"
 	Platform     = "2"
-	Channel      = "xiaomi"
+	Channel      = "other"
 	fieldSeed    = "F44B0282BEA83557"
 	sliderSeed   = "Ukp3hmSe7BmMcgbE"
 	aesIV        = "01234ABCDEF56789"
+
+	RunRiskActionFinish         = "SUN_FINISH"
+	RunRiskActionAbnormalFinish = "SUN_ABNORMAL_FINISH"
+	runRiskProductionKey        = "m5G1LQmCcPK2w5LJhITkB30psyOzHL4V"
+	runRiskOtherKey             = "android850aeskey0000000000000000"
 )
 
 func environmentSignSeed(environment int) string {
@@ -39,6 +45,13 @@ func environmentRunSecret(environment int) string {
 		return "9dLCADYy64tKQXoHYTGfrs4VlY0Yg4sI"
 	}
 	return "QCxhZB6oagpOaQ2jitHucZd8bX34ZEVp"
+}
+
+func environmentRunRiskKey(environment int) []byte {
+	if environment == 9 {
+		return []byte(runRiskProductionKey)
+	}
+	return []byte(runRiskOtherKey)
 }
 
 func deriveAES256Key(seed string) []byte {
@@ -100,13 +113,13 @@ func aesCBCBase64Decrypt(encoded string, key []byte) (string, error) {
 	return string(plaintext), nil
 }
 
-// EncryptField reproduces the 8.7.9 FormBody sensitive-field transform.
+// EncryptField reproduces the 8.8.1 FormBody sensitive-field transform.
 func EncryptField(value string) (string, error) {
 	return aesCBCBase64([]byte(value), deriveAES256Key(fieldSeed))
 }
 
 // DecryptField reverses the response-side sensitive-field transform used for
-// userName, schoolName and studentNumber in the 8.7.9 protocol.
+// userName, schoolName and studentNumber in the 8.8.1 protocol.
 func DecryptField(value string) (string, error) {
 	return aesCBCBase64Decrypt(value, deriveAES256Key(fieldSeed))
 }
@@ -140,9 +153,33 @@ func EncryptSliderPoint(rawX float64) (string, error) {
 	return base64.StdEncoding.EncodeToString(output), nil
 }
 
-func RunImageRecord(runRecordCode, appCode, appVersion, timestamp string, environment int) string {
-	digest := md5.Sum([]byte(runRecordCode + appCode + appVersion + environmentRunSecret(environment) + timestamp))
+func RunImageRecord(runRecordCode, buildVersion, appVersion, timestamp string, environment int) string {
+	digest := md5.Sum([]byte(runRecordCode + buildVersion + appVersion + environmentRunSecret(environment) + timestamp))
 	return hex.EncodeToString(digest[:])
+}
+
+// RunRiskExt reproduces the 8.8.1 native finish-request ext value. The server
+// supplies the encrypted salt with common user info and a per-run encrypted
+// token with the start/unfinished-run response. Invalid or incomplete state is
+// reported as false so callers can mirror the app and omit ext.
+func RunRiskExt(saltCipher, tokenCipher, timestamp, action, runRecordCode string, environment int) (string, bool) {
+	if strings.TrimSpace(runRecordCode) == "" || strings.TrimSpace(timestamp) == "" {
+		return "", false
+	}
+	if action != RunRiskActionFinish && action != RunRiskActionAbnormalFinish {
+		return "", false
+	}
+	key := environmentRunRiskKey(environment)
+	salt, err := aesCBCBase64Decrypt(strings.TrimSpace(saltCipher), key)
+	if err != nil || salt == "" {
+		return "", false
+	}
+	token, err := aesCBCBase64Decrypt(strings.TrimSpace(tokenCipher), key)
+	if err != nil || token == "" {
+		return "", false
+	}
+	digest := md5.Sum([]byte(token + salt + action + timestamp))
+	return hex.EncodeToString(digest[:]), true
 }
 
 func compactJSON(value any) ([]byte, error) {

@@ -94,7 +94,7 @@ func NormalizeProfile(profile Profile) (Profile, error) {
 		profile.TargetStrideM = round(60000/(profile.TargetPaceSecPerKM*profile.CadenceSPM), 3)
 	}
 	if profile.SampleIntervalS == 0 {
-		// The 8.7.9 LocationComponent requests a 3000 ms location interval.
+		// The 8.8.1 LocationComponent requests a 3000 ms location interval.
 		profile.SampleIntervalS = 3
 	}
 	if profile.PaceVariationPct == 0 {

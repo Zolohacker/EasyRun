@@ -1,14 +1,89 @@
 package protocol
 
 import (
+	"context"
 	"encoding/json"
 	"math"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/Zolohacker/EasyRun/internal/activity"
 )
+
+func TestFenceDisplayNameCombinesCampusAndFence(t *testing.T) {
+	for _, test := range []struct {
+		name          string
+		fenceName     string
+		subSchoolName string
+		schoolName    string
+		fenceCode     string
+		want          string
+	}{
+		{name: "campus and generic fence", fenceName: "操场", subSchoolName: " 南区 ", schoolName: "某某大学", fenceCode: "f1", want: "南区 · 操场"},
+		{name: "blank fence uses campus", subSchoolName: "南区", schoolName: "某某大学", fenceCode: "f2", want: "南区"},
+		{name: "campus and specific fence", fenceName: "东湖跑道", subSchoolName: "东区", schoolName: "某某大学", fenceCode: "f3", want: "东区 · 东湖跑道"},
+		{name: "school fallback and fence", fenceName: "田径场", schoolName: "某某大学", fenceCode: "f4", want: "某某大学 · 田径场"},
+		{name: "same scope and fence is collapsed", fenceName: "南区", subSchoolName: "南区", fenceCode: "f5", want: "南区"},
+		{name: "all names absent", fenceCode: "f5", want: "围栏 f5"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			got := fenceDisplayName(test.fenceName, test.subSchoolName, test.schoolName, test.fenceCode)
+			if got != test.want {
+				t.Fatalf("display name=%q want=%q", got, test.want)
+			}
+		})
+	}
+}
+
+func TestFencesParseCampusNamesAndDisambiguateDuplicates(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/school/querySchoolFences" {
+			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
+		}
+		if r.Header.Get("Authorization") != "token" || r.Header.Get("satoken") != "sa-token" || r.Header.Get("sign") == "" {
+			t.Error("fence request did not preserve session/signature headers")
+		}
+		var payload map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatal(err)
+		}
+		if payload["schoolCode"] != "school-1" {
+			t.Errorf("schoolCode=%v", payload["schoolCode"])
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"code":0,"data":[
+			{"fenceCode":"south-1","schoolCode":"school-1","subSchoolCode":"south","subSchoolName":"南区","schoolName":"某某大学","fenceName":"操场","lat":31.2,"lng":121.4},
+			{"fenceCode":"north-1","schoolCode":"school-1","subSchoolCode":"north","subSchoolName":"北区","schoolName":"某某大学","fenceName":"田径场","lat":31.3,"lng":121.5},
+			{"fenceCode":"west-1","schoolCode":"school-1","subSchoolCode":"west","subSchoolName":"西区","schoolName":"某某大学","fenceName":"运动场","lat":31.4,"lng":121.6},
+			{"fenceCode":"west-2","schoolCode":"school-1","subSchoolCode":"west","subSchoolName":"西区","schoolName":"某某大学","fenceName":"体育场","lat":31.5,"lng":121.7},
+			{"fenceCode":"west-3","schoolCode":"school-1","subSchoolCode":"west","subSchoolName":"西区","schoolName":"某某大学","fenceName":"运动场","lat":31.55,"lng":121.75},
+			{"fenceCode":"fallback","schoolCode":"school-1","lat":31.6,"lng":121.8}
+		]}`))
+	}))
+	defer server.Close()
+	client, err := NewClient(Options{BaseURL: server.URL})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fences, err := client.Fences(context.Background(), Device{}, Session{Token: "token", SAToken: "sa-token"}, "school-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(fences) != 6 {
+		t.Fatalf("fences=%+v", fences)
+	}
+	for index, want := range []string{"南区 · 操场", "北区 · 田径场", "西区 · 运动场（west-1）", "西区 · 体育场", "西区 · 运动场（west-3）", "围栏 fallback"} {
+		if fences[index].FenceName != want {
+			t.Errorf("fence %d name=%q want=%q", index, fences[index].FenceName, want)
+		}
+	}
+	if fences[0].SubSchoolName != "南区" || fences[0].SubSchoolCode != "south" {
+		t.Fatalf("campus metadata not parsed: %+v", fences[0])
+	}
+}
 
 func TestAppPaceSegmentsUseFiftyMetreStateMachineAndKeepTail(t *testing.T) {
 	samples := linearSamples(15, 3, 10, 5)

@@ -799,7 +799,7 @@ func (s *Service) authenticated(ctx context.Context, accountID string) (platform
 	if err == nil && session.Token != "" && session.SAToken != "" {
 		validated, validateErr := s.client.ValidateSession(ctx, accountDevice(account), session)
 		if validateErr == nil {
-			if validated.UserName != session.UserName || validated.StudentNumber != session.StudentNumber || validated.SchoolCode != session.SchoolCode || validated.SchoolName != session.SchoolName {
+			if validated.UserName != session.UserName || validated.StudentNumber != session.StudentNumber || validated.SchoolCode != session.SchoolCode || validated.SchoolName != session.SchoolName || validated.RiskSaltCipher != session.RiskSaltCipher {
 				account, err = s.persistSession(ctx, account, validated)
 				if err != nil {
 					unlock()

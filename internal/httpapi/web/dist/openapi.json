@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "EasyRun API",
-    "version": "8.7.9-platform.1",
+    "version": "8.8.1-platform.1",
     "description": "Go-native multi-account login-first onboarding, account resource sync, route planning, returned-record preflight and automation API."
   },
   "servers": [

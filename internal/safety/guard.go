@@ -30,6 +30,10 @@ type Status struct {
 	CurrentBuild   string     `json:"current_build"`
 	LatestVersion  string     `json:"latest_version"`
 	SupportVersion string     `json:"support_version"`
+	VersionSource  string     `json:"version_source"`
+	MarketVersion  string     `json:"market_version"`
+	MarketURL      string     `json:"market_url"`
+	MarketError    string     `json:"market_error"`
 	HaveUpdate     bool       `json:"have_update"`
 	ForceUpdate    bool       `json:"force_update"`
 	Known          bool       `json:"known"`
@@ -132,6 +136,8 @@ func (g *Guard) Refresh(ctx context.Context, force bool) error {
 	if err == nil {
 		g.status.Known, g.status.HaveUpdate, g.status.ForceUpdate = true, result.HaveUpdate, result.ForceUpdate
 		g.status.LatestVersion, g.status.SupportVersion = result.NewVersion, result.SupportVersion
+		g.status.VersionSource, g.status.MarketVersion = result.VersionSource, result.MarketVersion
+		g.status.MarketURL, g.status.MarketError = result.MarketURL, result.MarketError
 		g.status.Title, g.status.Description = result.UpdateTitle, result.UpdateDescription
 		g.status.SuccessAt, g.status.LastError = &now, ""
 	} else {

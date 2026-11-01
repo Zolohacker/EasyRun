@@ -17,19 +17,21 @@ import (
 )
 
 type Options struct {
-	BaseURL     string
-	WebBaseURL  string
-	Environment int
-	Timeout     time.Duration
+	BaseURL      string
+	WebBaseURL   string
+	AppMarketURL string
+	Environment  int
+	Timeout      time.Duration
 }
 
 type Client struct {
-	baseURL     string
-	webBaseURL  string
-	environment int
-	http        *http.Client
-	clock       func() time.Time
-	face        faceengine.Analyzer
+	baseURL      string
+	webBaseURL   string
+	appMarketURL string
+	environment  int
+	http         *http.Client
+	clock        func() time.Time
+	face         faceengine.Analyzer
 }
 
 type Device struct {
@@ -39,13 +41,14 @@ type Device struct {
 }
 
 type Session struct {
-	Token         string `json:"token"`
-	SAToken       string `json:"satoken"`
-	UserID        string `json:"user_id"`
-	UserName      string `json:"user_name,omitempty"`
-	StudentNumber string `json:"student_number,omitempty"`
-	SchoolCode    string `json:"school_code,omitempty"`
-	SchoolName    string `json:"school_name,omitempty"`
+	Token          string `json:"token"`
+	SAToken        string `json:"satoken"`
+	UserID         string `json:"user_id"`
+	UserName       string `json:"user_name,omitempty"`
+	StudentNumber  string `json:"student_number,omitempty"`
+	SchoolCode     string `json:"school_code,omitempty"`
+	SchoolName     string `json:"school_name,omitempty"`
+	RiskSaltCipher string `json:"risk_salt_cipher,omitempty"`
 }
 
 type Envelope struct {
@@ -110,9 +113,20 @@ func NewClient(options Options) (*Client, error) {
 	if options.Timeout <= 0 {
 		options.Timeout = 20 * time.Second
 	}
+	appMarketURL := strings.TrimSpace(options.AppMarketURL)
+	if appMarketURL == "" {
+		appMarketURL = DefaultAppMarketURL
+	}
+	parsedMarketURL, err := url.ParseRequestURI(appMarketURL)
+	if err != nil {
+		return nil, fmt.Errorf("parse app market URL: %w", err)
+	}
+	if (parsedMarketURL.Scheme != "http" && parsedMarketURL.Scheme != "https") || parsedMarketURL.Host == "" {
+		return nil, errors.New("app market URL must be an absolute HTTP(S) URL")
+	}
 	return &Client{
-		baseURL: baseURL, webBaseURL: strings.TrimRight(options.WebBaseURL, "/"), environment: options.Environment,
-		http: &http.Client{Timeout: options.Timeout}, clock: time.Now,
+		baseURL: baseURL, webBaseURL: strings.TrimRight(options.WebBaseURL, "/"), appMarketURL: appMarketURL,
+		environment: options.Environment, http: &http.Client{Timeout: options.Timeout}, clock: time.Now,
 	}, nil
 }
 
@@ -179,7 +193,7 @@ func (c *Client) post(ctx context.Context, endpoint string, device Device, value
 	return decodeEnvelopeResponse(response)
 }
 
-// get reproduces the 8.7.9 Retrofit GET path: common parameters are appended
+// get reproduces the 8.8.1 Retrofit GET path: common parameters are appended
 // to the URL query and the request is not given a sign header.
 func (c *Client) get(ctx context.Context, endpoint string, device Device, values map[string]any, session Session) (Envelope, error) {
 	payload := c.basePayload(device, values)

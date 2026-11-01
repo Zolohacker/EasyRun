@@ -23,7 +23,7 @@ import (
 
 const maxFaceImageBytes = 6 << 20
 
-// UserFaceConfig mirrors run-front/face/getUserFaceImg in the 8.7.9 client.
+// UserFaceConfig mirrors run-front/face/getUserFaceImg in the 8.8.1 client.
 // FaceImg is kept inside the protocol/runner layers and is never returned by
 // the local account API.
 type UserFaceConfig struct {

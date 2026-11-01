@@ -121,6 +121,7 @@ type Fence struct {
 	SchoolCode    string       `json:"schoolCode"`
 	SubSchoolCode string       `json:"subSchoolCode"`
 	SchoolName    string       `json:"schoolName"`
+	SubSchoolName string       `json:"subSchoolName"`
 	FenceName     string       `json:"fenceName"`
 	Lat           float64      `json:"lat"`
 	Lng           float64      `json:"lng"`
@@ -203,7 +204,7 @@ func (c *Client) Plans(ctx context.Context, device Device, session Session, seme
 }
 
 // RunRules reads the effective per-plan school rules. The plan list itself only
-// contains identity/status fields in 8.7.9; distance, pace, cadence and stride
+// contains identity/status fields in 8.8.1; distance, pace, cadence and stride
 // limits come from querySunRunAbstractInfoV2.schoolDemandRule.
 func (c *Client) RunRules(ctx context.Context, device Device, session Session, semesterCode, runPlanCode string) (RemoteRunRules, error) {
 	envelope, err := c.post(ctx, "run/querySunRunAbstractInfoV2", device, map[string]any{
@@ -333,12 +334,16 @@ func (c *Client) Fences(ctx context.Context, device Device, session Session, sch
 	}
 	result := make([]Fence, 0, len(items))
 	for _, item := range items {
+		fenceCode := stringValue(item, "fenceCode", "code")
+		schoolName := stringValue(item, "schoolName")
+		subSchoolName := stringValue(item, "subSchoolName")
 		fence := Fence{
-			FenceCode:     stringValue(item, "fenceCode", "code"),
+			FenceCode:     fenceCode,
 			SchoolCode:    stringValue(item, "schoolCode"),
 			SubSchoolCode: stringValue(item, "subSchoolCode"),
-			SchoolName:    stringValue(item, "schoolName"),
-			FenceName:     stringValue(item, "fenceName", "name", "subSchoolName"),
+			SchoolName:    schoolName,
+			SubSchoolName: subSchoolName,
+			FenceName:     fenceDisplayName(stringValue(item, "fenceName", "name"), subSchoolName, schoolName, fenceCode),
 			Lat:           floatValue(item, "lat", "latitude"),
 			Lng:           floatValue(item, "lng", "longitude"),
 		}
@@ -362,10 +367,50 @@ func (c *Client) Fences(ctx context.Context, device Device, session Session, sch
 			result = append(result, fence)
 		}
 	}
+	ensureUniqueFenceNames(result)
 	return result, nil
 }
 
-// SubmitRun speaks the 8.7.9 protocol directly. It uses the official sequence
+// fenceDisplayName keeps both pieces of upstream identity when they differ.
+// Some schools return identical subSchoolName and fenceName values; those are
+// collapsed to avoid rendering the same name twice.
+func fenceDisplayName(fenceName, subSchoolName, schoolName, fenceCode string) string {
+	fenceName = strings.TrimSpace(fenceName)
+	scopeName := strings.TrimSpace(subSchoolName)
+	if scopeName == "" {
+		scopeName = strings.TrimSpace(schoolName)
+	}
+	if scopeName != "" && fenceName != "" {
+		if scopeName == fenceName {
+			return scopeName
+		}
+		return scopeName + " · " + fenceName
+	}
+	if scopeName != "" {
+		return scopeName
+	}
+	if fenceName != "" {
+		return fenceName
+	}
+	return "围栏 " + strings.TrimSpace(fenceCode)
+}
+
+// ensureUniqueFenceNames keeps the synced area selector unambiguous even when
+// more than one fence belongs to the same campus.
+func ensureUniqueFenceNames(fences []Fence) {
+	counts := make(map[string]int, len(fences))
+	for index := range fences {
+		fences[index].FenceName = strings.TrimSpace(fences[index].FenceName)
+		counts[fences[index].FenceName]++
+	}
+	for index := range fences {
+		if counts[fences[index].FenceName] > 1 {
+			fences[index].FenceName = fmt.Sprintf("%s（%s）", fences[index].FenceName, fences[index].FenceCode)
+		}
+	}
+}
+
+// SubmitRun speaks the 8.8.1 protocol directly. It uses the official sequence
 // (plan/fence/preflight/start, incremental evidence uploads, finish) and does
 // not invoke the legacy panel or a Python helper.
 func (c *Client) SubmitRun(ctx context.Context, device Device, session Session, selectedPlanCode, selectedSemesterCode, selectedFenceCode string, selectedDistanceM float64, seed int64, faceInput *FaceInput, buildRun RunBuilder) (SubmissionResult, activity.Run, error) {
@@ -462,10 +507,11 @@ func (c *Client) SubmitRun(ctx context.Context, device Device, session Session, 
 	if runRecordCode == "" {
 		return SubmissionResult{}, activity.Run{}, errors.New("起跑响应没有返回 runRecordCode")
 	}
+	riskTokenCipher := findStringInJSON(startEnvelope.Data, "ext")
 	abortStartedRun := func(cause error) error {
 		cleanupContext, cancel := context.WithTimeout(context.WithoutCancel(ctx), 12*time.Second)
 		defer cancel()
-		if cleanupErr := c.abortSunRun(cleanupContext, device, session, runRecordCode, abnormalMissingRunData); cleanupErr != nil {
+		if cleanupErr := c.abortSunRun(cleanupContext, device, session, runRecordCode, abnormalMissingRunData, riskTokenCipher); cleanupErr != nil {
 			return fmt.Errorf("%w；清理已起跑会话失败: %v", cause, cleanupErr)
 		}
 		return cause
@@ -502,8 +548,9 @@ func (c *Client) SubmitRun(ctx context.Context, device Device, session Session, 
 
 	timestamp := strconv.FormatInt(c.clock().UnixMilli(), 10)
 	finishValues := buildFinishRunValues(runRecordCode, run, commonConfig, passedPoints)
-	finishValues["runImgRecord"] = RunImageRecord(runRecordCode, AppCode, AppVersion, timestamp, c.environment)
+	finishValues["runImgRecord"] = RunImageRecord(runRecordCode, BuildVersion, AppVersion, timestamp, c.environment)
 	finishValues["timestamp"] = timestamp
+	c.addRunRiskExt(finishValues, session.RiskSaltCipher, riskTokenCipher, timestamp, RunRiskActionFinish, runRecordCode)
 	if len(replay.PendingPOIs) > 0 {
 		finishValues["pois"] = replay.PendingPOIs
 	}
@@ -527,16 +574,24 @@ func (c *Client) SubmitRun(ctx context.Context, device Device, session Session, 
 	return SubmissionResult{RunRecordCode: runRecordCode, Message: message, ServerData: cloneRaw(finishEnvelope.Data), SubmittedAt: c.clock().UTC()}, run, nil
 }
 
-func (c *Client) abortSunRun(ctx context.Context, device Device, session Session, runRecordCode string, abnormalCode int) error {
+func (c *Client) abortSunRun(ctx context.Context, device Device, session Session, runRecordCode string, abnormalCode int, riskTokenCipher string) error {
 	timestamp := strconv.FormatInt(c.clock().UnixMilli(), 10)
 	values := map[string]any{
 		"runRecordCode": runRecordCode,
 		"abnormalCodes": []int{abnormalCode},
-		"runImgRecord":  RunImageRecord(runRecordCode, AppCode, AppVersion, timestamp, c.environment),
+		"runImgRecord":  RunImageRecord(runRecordCode, BuildVersion, AppVersion, timestamp, c.environment),
 		"timestamp":     timestamp,
 	}
+	c.addRunRiskExt(values, session.RiskSaltCipher, riskTokenCipher, timestamp, RunRiskActionAbnormalFinish, runRecordCode)
 	_, err := c.post(ctx, "run/abnormalFinishSunRun", device, values, requestOptions{session: session})
 	return err
+}
+
+func (c *Client) addRunRiskExt(values map[string]any, saltCipher, tokenCipher, timestamp, action, runRecordCode string) {
+	delete(values, "ext")
+	if ext, ok := RunRiskExt(saltCipher, tokenCipher, timestamp, action, runRecordCode, c.environment); ok {
+		values["ext"] = ext
+	}
 }
 
 func unwrapArray(raw json.RawMessage) ([]map[string]any, error) {

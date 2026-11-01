@@ -322,7 +322,7 @@ func (s *Scheduler) execute(parent context.Context, item workItem, workerProcess
 	}
 	jobContext.Plan.TargetDistanceM = selection.TargetDistanceM
 	jobContext.Plan.Profile = selection.Profile
-	// LocationComponent in the 8.7.9 client requests a fixed 3000 ms cadence.
+	// LocationComponent in the 8.8.1 client requests a fixed 3000 ms cadence.
 	// Force it for older plans persisted before timing metadata was synced.
 	jobContext.Plan.Profile.SampleIntervalS = 3
 	if s.submitter == nil {

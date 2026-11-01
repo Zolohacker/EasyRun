@@ -22,9 +22,11 @@ type unfinishedRunTestStep struct {
 
 func TestSubmitRunReconcilesUnfinishedRunBeforeStart(t *testing.T) {
 	const oldCode = "9007199254740993"
+	const riskSaltCipher = "gveF0ho5CmkyL2xPND2eGA=="
+	const riskTokenCipher = "WJjiB9GVuf72Oa76T5M8gA=="
 	const queryPath = "/run-front/run/queryUnFinishRun"
 	const endPath = "/run-front/run/abnormalFinishSunRun"
-	active := unfinishedRunTestStep{path: queryPath, response: `{"code":0,"data":{"runRecordCode":"` + oldCode + `","sportType":1,"resume":true}}`}
+	active := unfinishedRunTestStep{path: queryPath, response: `{"code":0,"data":{"runRecordCode":"` + oldCode + `","sportType":1,"resume":true,"ext":"` + riskTokenCipher + `"}}`}
 	empty := unfinishedRunTestStep{path: queryPath, response: `{"code":0,"data":null}`}
 	ended := unfinishedRunTestStep{path: endPath, response: `{"code":0,"data":{}}`}
 	expiredQuery := unfinishedRunTestStep{path: queryPath, response: `{"code":1503,"message":"token invalid"}`}
@@ -110,6 +112,17 @@ func TestSubmitRunReconcilesUnfinishedRunBeforeStart(t *testing.T) {
 						if len(payload["timestamp"]) == 0 || len(payload["runImgRecord"]) == 0 {
 							t.Error("missing end request timestamp or runImgRecord")
 						}
+						var timestamp, ext string
+						if err := json.Unmarshal(payload["timestamp"], &timestamp); err != nil {
+							t.Errorf("decode timestamp: %v", err)
+						}
+						if err := json.Unmarshal(payload["ext"], &ext); err != nil {
+							t.Errorf("decode ext: %v", err)
+						}
+						wantExt, ok := RunRiskExt(riskSaltCipher, riskTokenCipher, timestamp, RunRiskActionAbnormalFinish, oldCode, 9)
+						if !ok || ext != wantExt {
+							t.Errorf("end ext=%q want=%q", ext, wantExt)
+						}
 						for _, field := range []string{"distance", "duration", "stepCount", "pois", "stepList", "paceList", "faceCheckRecordList"} {
 							if _, exists := payload[field]; exists {
 								t.Errorf("unexpected metric on abandoned run: %s", field)
@@ -131,7 +144,7 @@ func TestSubmitRunReconcilesUnfinishedRunBeforeStart(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			_, _, err = client.SubmitRun(ctx, Device{}, Session{Token: "test-token", SAToken: "test-satoken", SchoolCode: "school-1"}, "plan-1", "semester-1", "fence-1", 1000, 1, nil,
+			_, _, err = client.SubmitRun(ctx, Device{}, Session{Token: "test-token", SAToken: "test-satoken", SchoolCode: "school-1", RiskSaltCipher: riskSaltCipher}, "plan-1", "semester-1", "fence-1", 1000, 1, nil,
 				func(context.Context, RunStartContext) (activity.Run, error) {
 					t.Error("builder must not run before a valid start response")
 					return activity.Run{}, errors.New("unexpected builder call")

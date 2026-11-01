@@ -94,7 +94,7 @@ func TestCompleteSMSLoginUsesLoginCheckPhoneAsTerminalType(t *testing.T) {
 	}
 }
 
-func TestClientUsesRecovered879EnvelopeAndHeaders(t *testing.T) {
+func TestClientUsesRecovered881EnvelopeAndHeaders(t *testing.T) {
 	fixed := time.UnixMilli(1700000000000)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/run-front/run/pageSunRunRecord" {
@@ -116,7 +116,7 @@ func TestClientUsesRecovered879EnvelopeAndHeaders(t *testing.T) {
 		if r.Header.Get("app") != "run-front" || r.Header.Get("api") != "run" || r.Header.Get("v") != "pageSunRunRecord" {
 			t.Errorf("protocol headers: app=%q api=%q v=%q", r.Header.Get("app"), r.Header.Get("api"), r.Header.Get("v"))
 		}
-		if r.Header.Get("User-Agent") != "ShanDong/8.7.9 (redmi;Android 14)" {
+		if r.Header.Get("User-Agent") != "ShanDong/8.8.1 (redmi;Android 14)" {
 			t.Errorf("user agent=%q", r.Header.Get("User-Agent"))
 		}
 		raw, _ := compactJSON(payload)
