@@ -1241,6 +1241,7 @@ func pacePayload(index int, start, end activity.Sample) map[string]any {
 		"startTime": startTime, "endTime": endTime, "time": endTime - startTime,
 		"startDistance": startDistance, "endDistance": endDistance, "distance": endDistance - startDistance,
 		"startStepCount": start.Steps, "endStepCount": end.Steps, "stepCount": end.Steps - start.Steps,
+		"stability": 0,
 	}
 }
 
@@ -1258,6 +1259,7 @@ func buildAppStepSegments(samples []activity.Sample, intervalS int) ([]timedPayl
 			"endTime":   int64(math.Round(segment.EndElapsedS)),
 			"time":      int64(math.Round(segment.DurationS)),
 			"startStep": segment.StartSteps, "endStep": segment.EndSteps, "step": segment.Steps,
+			"stability": 0,
 		}
 		if segment.DurationS+0.001 < float64(intervalS) {
 			tail = payload
