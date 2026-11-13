@@ -1196,13 +1196,21 @@ func buildAppPOI(sample activity.Sample, createdAt time.Time) map[string]any {
 	return map[string]any{
 		"index": sample.Index + 1,
 		"lat":   sample.Lat, "lng": sample.Lng,
-		"accuracy":    sample.HorizontalAccuracyM,
+		"accuracy":    wireAccuracy(sample.HorizontalAccuracyM),
 		"collectTime": sample.RecordedAt.UnixMilli(),
 		"createTime":  createdAt.UnixMilli(),
 		"runTime":     int(math.Round(sample.ElapsedS)),
 		"satellites":  sample.Satellites,
-		"state":       1, "offFenceDisM": 0,
+		"state":       1, "offFenceDisM": -1,
 	}
+}
+
+// wireAccuracy matches the real client's reported accuracy: Baidu getRadius()
+// returns an integer, serialized with one decimal (e.g. 3.0). Emitting the raw
+// fractional metres (3.47) only happens on a path that bypasses that integer
+// boundary, so round to a whole value and keep the single-decimal form.
+func wireAccuracy(m float64) json.Number {
+	return json.Number(strconv.FormatFloat(math.Round(m), 'f', 1, 64))
 }
 
 func buildAppPaceSegments(samples []activity.Sample, intervalM int64) ([]timedPayload, map[string]any) {

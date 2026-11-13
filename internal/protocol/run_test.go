@@ -149,6 +149,21 @@ func TestAppPOIOmitsLocalOnlyRunLatLngFields(t *testing.T) {
 	}
 }
 
+func TestAppPOIAccuracyRoundsToIntegerAndInFenceSentinel(t *testing.T) {
+	sample := activity.Sample{HorizontalAccuracyM: 3.47, Satellites: 12, RecordedAt: time.Now()}
+	raw, err := json.Marshal(buildAppPOI(sample, sample.RecordedAt))
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	wire := string(raw)
+	if !strings.Contains(wire, `"accuracy":3.0`) {
+		t.Fatalf("accuracy not rounded to one-decimal integer: %s", wire)
+	}
+	if !strings.Contains(wire, `"offFenceDisM":-1`) {
+		t.Fatalf("offFenceDisM not in-fence sentinel: %s", wire)
+	}
+}
+
 func TestTargetPointCodeUsesJSONNumberAndParserPreservesMetadata(t *testing.T) {
 	points := parseTargetPoints(json.RawMessage(`{"targetPoints":[
 		{"code":"9007199254740991","lat":31.2,"lng":121.4,"type":2,"sort":3,"nfcEnable":true},
