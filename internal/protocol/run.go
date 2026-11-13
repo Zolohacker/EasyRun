@@ -551,8 +551,8 @@ func (c *Client) SubmitRun(ctx context.Context, device Device, session Session, 
 	finishValues["runImgRecord"] = RunImageRecord(runRecordCode, BuildVersion, AppVersion, timestamp, c.environment)
 	finishValues["timestamp"] = timestamp
 	c.addRunRiskExt(finishValues, session.RiskSaltCipher, riskTokenCipher, timestamp, RunRiskActionFinish, runRecordCode)
-	if len(replay.PendingPOIs) > 0 {
-		finishValues["pois"] = replay.PendingPOIs
+	if len(replay.AllPOIs) > 0 {
+		finishValues["pois"] = replay.AllPOIs
 	}
 	if len(replay.PendingSteps) > 0 {
 		finishValues["stepList"] = replay.PendingSteps
@@ -840,7 +840,7 @@ type timedPayload struct {
 }
 
 type replayResult struct {
-	PendingPOIs  []map[string]any
+	AllPOIs      []map[string]any
 	PendingPaces []map[string]any
 	PendingSteps []map[string]any
 	FaceRecords  []FaceCheckRecord
@@ -910,7 +910,8 @@ func (c *Client) replayRun(ctx context.Context, device Device, session Session, 
 		pointState[index].PassStatus = false
 		pointState[index].ClockTime = 0
 	}
-	pendingPOIs := make([]map[string]any, 0, 8)
+	allPOIs := make([]map[string]any, 0, 128)
+	sentPOICount := 0
 	pendingPaces := make([]map[string]any, 0, 4)
 	pendingSteps := make([]map[string]any, 0, 4)
 	paceCursor, stepCursor, strideCursor := 0, 0, 0
@@ -938,7 +939,7 @@ func (c *Client) replayRun(ctx context.Context, device Device, session Session, 
 		dispatchedAt := createdAt
 		previousDispatch = dispatchedAt
 		previousSample = sample
-		pendingPOIs = append(pendingPOIs, buildAppPOI(sample, createdAt))
+		allPOIs = append(allPOIs, buildAppPOI(sample, createdAt))
 
 		if facePlan != nil {
 			for recordIndex := range facePlan.Records {
@@ -990,11 +991,15 @@ func (c *Client) replayRun(ctx context.Context, device Device, session Session, 
 
 		if sample.ElapsedS+0.001 >= nextPOIUpload {
 			// ApiDataComponent.c0 requires more than three pending valid POIs.
-			if len(pendingPOIs) > 3 {
+			// The client resends the whole accumulated trajectory each time.
+			// Points carried in an earlier upload become state 4 and points
+			// added since the last upload stay state 1.
+			if len(allPOIs)-sentPOICount > 3 {
+				markPOIUploadState(allPOIs, sentPOICount)
 				if _, uploadErr := c.post(ctx, "run/uploadRunRecord", device, map[string]any{
-					"runRecordCode": runRecordCode, "pois": pendingPOIs,
+					"runRecordCode": runRecordCode, "pois": allPOIs,
 				}, requestOptions{session: session}); uploadErr == nil {
-					pendingPOIs = pendingPOIs[:0]
+					sentPOICount = len(allPOIs)
 				} else if IsSessionExpired(uploadErr) {
 					return replayResult{}, uploadErr
 				}
@@ -1049,8 +1054,9 @@ func (c *Client) replayRun(ctx context.Context, device Device, session Session, 
 	if stepTail != nil {
 		pendingSteps = append(pendingSteps, stepTail)
 	}
+	markPOIUploadState(allPOIs, sentPOICount)
 	result := replayResult{
-		PendingPOIs: pendingPOIs, PendingPaces: pendingPaces, PendingSteps: pendingSteps,
+		AllPOIs: allPOIs, PendingPaces: pendingPaces, PendingSteps: pendingSteps,
 		TargetPoints: pointState,
 	}
 	if facePlan != nil {
@@ -1202,6 +1208,19 @@ func buildAppPOI(sample activity.Sample, createdAt time.Time) map[string]any {
 		"runTime":     int(math.Round(sample.ElapsedS)),
 		"satellites":  sample.Satellites,
 		"state":       1, "offFenceDisM": 0,
+	}
+}
+
+// markPOIUploadState mirrors the client's upload buffer. Points already sent in
+// a previous uploadRunRecord are marked state 4, and points added since the last
+// upload stay state 1. The whole buffer is resent on every upload and on finish.
+func markPOIUploadState(pois []map[string]any, sentCount int) {
+	for index := range pois {
+		if index < sentCount {
+			pois[index]["state"] = 4
+		} else {
+			pois[index]["state"] = 1
+		}
 	}
 }
 
